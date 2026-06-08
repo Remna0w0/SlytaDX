@@ -1,6 +1,6 @@
 ﻿namespace RemnaBotService
 {
-    public class ClientCommand
+    public class IsBot
     {
         public interface UniLogger
         {

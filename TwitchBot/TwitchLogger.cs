@@ -1,8 +1,8 @@
-﻿using static RemnaBotService.ClientCommand;
+﻿using static RemnaBotService.IsBot;
 
 namespace RemnaBotService
 {
-    public class TwitchLogger : UniLogger
+    public abstract class TwitchLogger : IsBot
     {
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 

@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using RemnaBotService.TwitchBot;
+using System.Linq.Expressions;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
@@ -167,9 +168,8 @@ public class TwitchClientContainer : TwitchLogger
 
                 if (!activeGames.ContainsKey(username))
                 {
-                    EternalDragon game = new EternalDragon();
-                    activeGames.Add(username, game);
-                    game.SetClient(this);
+                    var messenger = new TwitchMessenger(this);
+                    var game = new EternalDragon(messenger);
 
                     try
                     {

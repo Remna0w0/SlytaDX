@@ -1,7 +1,8 @@
 ﻿namespace RemnaBotService
 {
-    internal class CombatDirector : DialogContainer
+    internal class CombatDirector 
     {
+       
         public bool startGame = false;
         public bool quitGame = false;
         public int playerHP = 500;
@@ -15,7 +16,7 @@
         int[] damageNums = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
         static readonly Random random = new Random();
         int damageDone;
-        public void Block()
+        public string Block()
         {
             dragonAtk = (damageNums[random.Next(damageNums.Length)] + damageBump);
             // use damageDone variable to cut down equations for Console Writing
@@ -26,10 +27,10 @@
             string blockStory = DialogContainer.BlockStory[dialogIndex];
 
             // In  the future, lets make an array of different possible dialogue for these
-            Console.WriteLine($"\n{blockStory} You took {damageDone} damage!\n");
+            return $"\n{blockStory} You took {damageDone} damage!\n";
         }
 
-        public void Brave()
+        public string Brave()
         {
             playerAtk = (damageNums[random.Next(damageNums.Length)] + damageBump + blockBuff);
             dragonAtk = (damageNums[random.Next(damageNums.Length)] + damageBump);
@@ -41,7 +42,7 @@
                 blockBuff = 0;
                 dialogIndex = random.Next(DialogContainer.BraveSuccessStory.Length);
                 string braveStory = DialogContainer.BraveSuccessStory[dialogIndex];
-                Console.WriteLine($"\n{braveStory} You dealt {damageDone} damage to the Dragon!");
+                return $"\n{braveStory} You dealt {damageDone} damage to the Dragon!";
 
 
             }
@@ -51,7 +52,7 @@
                 playerHP -= damageDone;
                 dialogIndex = random.Next(DialogContainer.BraveFailureStory.Length);
                 string braveStory = DialogContainer.BraveFailureStory[dialogIndex];
-                Console.WriteLine($"\n{braveStory} You took {damageDone} damage!");
+                return $"\n{braveStory} You took {damageDone} damage!";
 
 
 
@@ -60,34 +61,40 @@
             {
                 dialogIndex = random.Next(DialogContainer.ClashStory.Length);
                 string clashStory = DialogContainer.ClashStory[dialogIndex];
-                Console.WriteLine($"\n{clashStory} No damage done!");
+                return $"\n{clashStory} No damage done!";
 
             }
         }
 
-        public void HPCheck(TwitchClientContainer client)
+        public string HPCheck()
         {
-            dialogIndex = random.Next(DialogContainer.VictoryStory.Length);
-            string victory = DialogContainer.VictoryStory[dialogIndex];
-            dialogIndex = random.Next(DialogContainer.DefeatStory.Length);
-            string defeat = DialogContainer.DefeatStory[dialogIndex];
+
             if (playerHP <= 0)
             {
-
-                client.Say($"You Lose! Your HP: {playerHP}  Dragon's HP: {dragonHP}");
                 startGame = false;
                 quitGame = true;
+                int dialogIndex = random.Next(DialogContainer.DefeatStory.Length);
+                string defeat = DialogContainer.DefeatStory[dialogIndex];
+                return $"{defeat}\nYour HP: {playerHP} | Dragon's HP: {dragonHP}";
             }
             else if (dragonHP <= 0)
             {
-
-                client.Say($"You Win! Your HP: {playerHP}  Dragon's HP: {dragonHP}");
                 startGame = false;
                 quitGame = true;
+                int dialogIndex = random.Next(DialogContainer.VictoryStory.Length);
+                string victory = DialogContainer.VictoryStory[dialogIndex];
+                return $"{victory}\nYour HP: {playerHP} | Dragon's HP: {dragonHP}";
             }
+            else
+            {
+                return "The battle continues...";
+            }
+
+            
         }
 
-
+    /* For Discord Only
+     
         public void DragonSet()
         {
             dragonHP = 0;
@@ -108,7 +115,7 @@
 
 
         }
-
+            
         public void PlayerSet()
         {
             playerHP = 0;
@@ -126,11 +133,11 @@
                 playerHP = result;
             }
             while (playerHP <= 0 || !isInt);
-
+      
 
         }
 
-
+      */
 
 
 
@@ -142,5 +149,6 @@
             dragonHP = 1000;
             blockBuff = 0;
         }
+
     }
 }

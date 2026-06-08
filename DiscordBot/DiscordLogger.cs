@@ -1,8 +1,8 @@
-﻿using static RemnaBotService.ClientCommand;
+﻿using static RemnaBotService.IsBot;
 
 namespace RemnaBotService
 {
-    public class DiscordLogger : UniLogger
+    public class DiscordLogger : IsBot
     {
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
