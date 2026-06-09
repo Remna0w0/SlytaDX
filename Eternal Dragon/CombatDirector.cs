@@ -1,8 +1,8 @@
 ﻿namespace RemnaBotService
 {
-    internal class CombatDirector 
+    internal class CombatDirector
     {
-       
+
         public bool startGame = false;
         public bool quitGame = false;
         public int playerHP = 500;
@@ -90,54 +90,54 @@
                 return "The battle continues...";
             }
 
-            
+
         }
 
-    /* For Discord Only
-     
-        public void DragonSet()
-        {
-            dragonHP = 0;
-            bool isInt;
-            do
+        /* For Discord Only
+
+            public void DragonSet()
             {
-                Console.Write("Dragon's HP: ");
-                string playerInput = Console.ReadLine().ToUpper();
-                isInt = int.TryParse(playerInput, out int result);
-                if (result <= 0 || !isInt)
+                dragonHP = 0;
+                bool isInt;
+                do
                 {
-                    Console.WriteLine("Invalid input, please enter a number greater than 0");
+                    Console.Write("Dragon's HP: ");
+                    string playerInput = Console.ReadLine().ToUpper();
+                    isInt = int.TryParse(playerInput, out int result);
+                    if (result <= 0 || !isInt)
+                    {
+                        Console.WriteLine("Invalid input, please enter a number greater than 0");
 
+                    }
+                    dragonHP = result;
                 }
-                dragonHP = result;
+                while (dragonHP <= 0 || !isInt);
+
+
             }
-            while (dragonHP <= 0 || !isInt);
 
-
-        }
-            
-        public void PlayerSet()
-        {
-            playerHP = 0;
-            bool isInt;
-            do
+            public void PlayerSet()
             {
-                Console.Write("Your HP: ");
-                string playerInput = Console.ReadLine().ToUpper();
-                isInt = int.TryParse(playerInput, out int result);
-                if (result <= 0 || !isInt)
+                playerHP = 0;
+                bool isInt;
+                do
                 {
-                    Console.WriteLine("Invalid input, please enter a number greater than 0");
+                    Console.Write("Your HP: ");
+                    string playerInput = Console.ReadLine().ToUpper();
+                    isInt = int.TryParse(playerInput, out int result);
+                    if (result <= 0 || !isInt)
+                    {
+                        Console.WriteLine("Invalid input, please enter a number greater than 0");
 
+                    }
+                    playerHP = result;
                 }
-                playerHP = result;
+                while (playerHP <= 0 || !isInt);
+
+
             }
-            while (playerHP <= 0 || !isInt);
-      
 
-        }
-
-      */
+          */
 
 
 

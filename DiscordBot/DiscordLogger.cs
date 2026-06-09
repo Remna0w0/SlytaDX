@@ -1,14 +1,16 @@
-﻿using static RemnaBotService.IsBot;
+﻿using System.Collections.Concurrent;
 
 namespace RemnaBotService
 {
-    public class DiscordLogger : IsBot
+    public class DiscordLogger : IsBot, IDisposable
     {
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
         static string fileLog = Path.Combine(baseDir, "discordbot log.txt");
 
         public event Action<string> OnOutputLog;
+
+        private static BlockingCollection<string> _logQueue = new BlockingCollection<string>();
         public void Log(string message)
         {
             OnOutputLog?.Invoke($"<Discord> {message}");
@@ -27,18 +29,34 @@ namespace RemnaBotService
                 File.Move(fileLog, oldLog);
             }
 
+            Task.Run(() =>
+            {
+                foreach (var message in _logQueue.GetConsumingEnumerable())
+                {
+                    try
+                    {
+                        File.AppendAllText(fileLog, message + Environment.NewLine);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Write($"[CRITICAL LOG ERROR]: Could not write to file: {ex.Message}");
+                    }
+                }
+            });
+
             OnOutputLog += (message) =>
 
             {
-                string formatted = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] <Discord> {message}";
+                string formatted = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
 
-                try
-                {
-                    File.AppendAllText(fileLog, formatted + Environment.NewLine);
-                }
-                catch { Console.WriteLine("ERROR WRITING TO LOG FILE. CHECK ROOT. IGNORE IF NO ISSUES."); }
+                _logQueue.Add(formatted);
             };
+        }
+
+        public void Dispose()
+        {
+            _logQueue.CompleteAdding();
         }
 
 

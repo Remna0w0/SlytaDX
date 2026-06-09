@@ -1,5 +1,4 @@
 ﻿using RemnaBotService.TwitchBot;
-using System.Linq.Expressions;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
@@ -32,6 +31,9 @@ public class TwitchClientContainer : TwitchLogger
     public string tourneyLink = File.ReadAllText(tourneyPath);
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
+    private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
+    private DateTime _lastRefreshAttempt = DateTime.MinValue;
+    private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
     public event EventHandler<string> OnStreamGoLive;
 
 
@@ -51,11 +53,19 @@ public class TwitchClientContainer : TwitchLogger
 
         await RefreshMyToken();
 
-        API.Settings.AccessToken = File.ReadAllText(accessPath);
+        if (File.Exists(accessPath))
+        {
 
-       
+            API.Settings.AccessToken = File.ReadAllText(accessPath);
+        }
+        else
+        {
+            Log("CRITICAL: Access Token file missing. Bot cannot start. Check root directory");
+            return;
+        }
 
-        
+
+
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{File.ReadAllText(accessPath)}");
         Client.OnConnected += OnConnected;
         Client.OnJoinedChannel += JoinedChannel;
@@ -69,7 +79,7 @@ public class TwitchClientContainer : TwitchLogger
         Client.OnDisconnected += (sender, e) =>
         {
             Log("Disconnected! Attempting to reconnect...");
-            Client.Connect(); 
+            Client.Connect();
         };
 
 
@@ -78,15 +88,22 @@ public class TwitchClientContainer : TwitchLogger
 
     private void SetupLiveCheck()
     {
-        CheckIfLive();
-        liveCheckTimer = new System.Timers.Timer(60000);
-        liveCheckTimer.Elapsed += async (s, e) => await CheckIfLive();
-        liveCheckTimer.AutoReset = true;
-        liveCheckTimer.Enabled = true;
+        {
+            CheckIfLive();
+            liveCheckTimer = new System.Timers.Timer(60000);
+            liveCheckTimer.Elapsed += async (s, e) => await CheckIfLive();
+            liveCheckTimer.AutoReset = true;
+            liveCheckTimer.Enabled = true;
+        }
     }
 
     private async Task CheckIfLive()
     {
+        if (!Client.IsConnected)
+        {
+            Log("Client offline, LIVE check postponed. Rechecking in 60 seconds...");
+            return;
+        }
         try
         {
             var response = await API.Helix.Streams.GetStreamsAsync(userLogins: new List<string> { streamName });
@@ -97,12 +114,12 @@ public class TwitchClientContainer : TwitchLogger
             {
                 isLive = true;
                 OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi");
-                Log("Streamer is live! Rechecking in 60 seconds...");
+                Log("Streamer is LIVE! Rechecking in 60 seconds...");
             }
             else if (!live)
             {
                 isLive = false;
-                Log("Streamer is not live! Rechecking in 60 seconds...");
+                Log("Streamer is not LIVE! Rechecking in 60 seconds...");
             }
         }
         catch (Exception ex) when (ex.Message.Contains("401") || ex.Message.Contains("bad credentials"))
@@ -110,15 +127,15 @@ public class TwitchClientContainer : TwitchLogger
             Log("Tokens expired! Refreshing tokens...");
             await RefreshMyToken();
 
-
-            API.Settings.AccessToken = File.ReadAllText(accessPath);
-
-            await CheckIfLive();
         }
         catch (Exception ex)
         {
             Log($"General Error: {ex.Message}");
         }
+
+
+
+
 
     }
 
@@ -126,20 +143,45 @@ public class TwitchClientContainer : TwitchLogger
 
     public async Task RefreshMyToken()
     {
+        if (DateTime.Now - _lastRefreshAttempt < _cooldown)
+        {
+            Log("Refresh cooldown active. Skipping request.");
+            return;
+        }
+
         Log("Refreshing Token...");
+
         try
         {
             RefreshResponse refreshResult = await API.Auth.RefreshAuthTokenAsync(RefreshToken, Secret, ClientID);
-            RefreshToken = refreshResult.RefreshToken;
 
-            Log($"New Access Token: {refreshResult.AccessToken}");
+            _lastRefreshAttempt = DateTime.Now;
 
-            File.WriteAllText(accessPath, refreshResult.AccessToken);
-            File.WriteAllText(refreshPath, RefreshToken);
+            if (refreshResult != null && !string.IsNullOrEmpty(refreshResult.AccessToken) && !string.IsNullOrEmpty(refreshResult.RefreshToken))
+            {
+                await _fileLock.WaitAsync();
+                try
+                {
+                    RefreshToken = refreshResult.RefreshToken;
+
+                    Log($"New Access Token: {refreshResult.AccessToken}");
+
+                    File.WriteAllText(accessPath, refreshResult.AccessToken);
+                    File.WriteAllText(refreshPath, RefreshToken);
+                }
+                finally
+                {
+                    _fileLock.Release();
+                }
+            }
+            else
+            {
+                Log("Error: Received invalid or null token. Skipping token write. Cooldown Started.");
+            }
         }
         catch (Exception ex)
         {
-            Log(ex.Message);
+            Log($"Critical Error! {ex.Message}");
         }
     }
 
@@ -156,7 +198,21 @@ public class TwitchClientContainer : TwitchLogger
             }
             else if (e.Command.CommandText.Equals("id", StringComparison.OrdinalIgnoreCase) || (e.Command.CommandText.Equals("arena", StringComparison.OrdinalIgnoreCase)))
             {
-                Say(File.ReadAllText(arenaIDPath));
+                await _fileLock.WaitAsync();
+                try
+                {
+                    if (File.Exists(arenaIDPath))
+                    {
+                        Say(File.ReadAllText(arenaIDPath));
+                    }
+                    else
+                    {
+                        Log("ATTENTION: Arena ID file missing. Check root. Returning default response.");
+                        Say("No arena open!");
+                    }
+                }
+                finally { _fileLock.Release(); }
+
             }
             else if (e.Command.CommandText.Equals("discord", StringComparison.OrdinalIgnoreCase))
             {
@@ -187,7 +243,21 @@ public class TwitchClientContainer : TwitchLogger
             }
             else if (e.Command.CommandText.Equals("tourney", StringComparison.OrdinalIgnoreCase))
             {
-                Say(tourneyLink);
+                await _fileLock.WaitAsync();
+                try
+                {
+                    if (File.Exists(tourneyPath))
+                    {
+                        Say(tourneyLink);
+                    }
+                    else
+                    {
+                        Log("ATTENTION: Tourney Link file missing. Check root. Returning default response");
+                        Say("No tournies open!");
+                    }
+                }
+                finally { _fileLock.Release(); }
+
             }
             else if (e.Command.CommandText.Equals("lurk", StringComparison.OrdinalIgnoreCase))
             {
@@ -197,9 +267,23 @@ public class TwitchClientContainer : TwitchLogger
             {
                 if (e.Command.ArgumentsAsList.Count > 0)
                 {
-                    string newID = e.Command.ArgumentsAsList[0];
-                    File.WriteAllText(arenaIDPath, newID);
-                    Say($"ID updated to: {newID}");
+                    await _fileLock.WaitAsync();
+                    try
+                    {
+                        if (File.Exists(arenaIDPath))
+                        {
+                            string newID = e.Command.ArgumentsAsList[0];
+                            File.WriteAllText(arenaIDPath, newID);
+                            Say($"ID updated to: {newID}");
+                        }
+                        else
+                        {
+                            Log("ATTENTION: Arena ID file missing. Check root. Warning command user.");
+                            Say("Error! Contact host!");
+                        }
+                    }
+                    finally { _fileLock.Release(); }
+
                 }
                 else
                 {
@@ -219,6 +303,11 @@ public class TwitchClientContainer : TwitchLogger
 
     public void Say(string message)
     {
+        if (!Client.IsConnected)
+        {
+            Log("Client not connected, message not sent.");
+            return;
+        }
         Client.SendMessage(Client.JoinedChannels[0], message);
     }
 
@@ -264,6 +353,7 @@ public class TwitchClientContainer : TwitchLogger
     public async Task GetInitialTokens(string authorizationCode, string redirectUri)
     {
         Log("Exchanging authorization code for tokens...");
+        await _fileLock.WaitAsync();
         try
         {
             AuthCodeResponse response = await API.Auth.GetAccessTokenFromCodeAsync(authorizationCode, Secret, redirectUri, ClientID);
@@ -277,11 +367,13 @@ public class TwitchClientContainer : TwitchLogger
 
             // Save the new refresh token to your file
             File.WriteAllText(refreshPath, RefreshToken);
+            _fileLock.Release();
         }
         catch (Exception ex)
         {
             Log($"Error exchanging code for tokens: {ex.Message}");
         }
+        finally { _fileLock.Release(); }
     }
 
 }

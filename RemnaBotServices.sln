@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35514.174
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemnaBotService", "TwitchChatBot\RemnaBotService.csproj", "{7B221217-065E-4E4B-AAC4-411185F9FC48}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemnaBotService", "RemnaBotService.csproj", "{3A0CC9CA-F778-9B17-D1F9-980AC3AC1A37}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +11,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{7B221217-065E-4E4B-AAC4-411185F9FC48}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7B221217-065E-4E4B-AAC4-411185F9FC48}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7B221217-065E-4E4B-AAC4-411185F9FC48}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7B221217-065E-4E4B-AAC4-411185F9FC48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A0CC9CA-F778-9B17-D1F9-980AC3AC1A37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A0CC9CA-F778-9B17-D1F9-980AC3AC1A37}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A0CC9CA-F778-9B17-D1F9-980AC3AC1A37}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A0CC9CA-F778-9B17-D1F9-980AC3AC1A37}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

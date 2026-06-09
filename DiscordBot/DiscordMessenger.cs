@@ -1,13 +1,6 @@
 ﻿using Discord;
-using Discord.WebSocket;
 using RemnaBotService.Eternal_Dragon;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Channels;
-using System.Threading.Tasks;
-using TwitchLib.Client.Events;
 
 namespace RemnaBotService.DiscordBot
 {
@@ -33,13 +26,13 @@ namespace RemnaBotService.DiscordBot
                 var color = Color.DarkBlue;
                 if (msg.Description.Contains("Victory"))
                     color = Color.Green;
-                else if (msg.Description.Contains("Defeat")) 
+                else if (msg.Description.Contains("Defeat"))
                     color = Color.Red;
                 var builder = new EmbedBuilder()
                     .WithTitle(msg.Title)
                     .WithDescription(msg.Description)
                     .WithColor(color);
-                _client.SayEmbed(_channel, builder.Build()); // You'll need a small helper in DiscordClientContainer
+                _client.SayEmbed(_channel, builder.Build());
             }
             else
             {
@@ -49,8 +42,20 @@ namespace RemnaBotService.DiscordBot
 
         public async Task<string> GetUserInputAsync(string username)
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(600));
             _tcs = new TaskCompletionSource<string>();
-            return await _tcs.Task;
+
+            using (cts.Token.Register(() => _tcs.TrySetCanceled()))
+            {
+                try
+                {
+                    return await _tcs.Task;
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+            }
         }
 
         public async Task<int> GetUserSelectionAsync(string[] options, string username) // async Task<int>
@@ -70,7 +75,13 @@ namespace RemnaBotService.DiscordBot
 
             while (true)
             {
-                string input = await GetUserInputAsync(username); // Await here
+
+                string input = await GetUserInputAsync(username);
+                if (input == null)
+                {
+                    SendGameMessage(new GameMessage { Title = "Timeout", Description = "Too slow! Game over." });
+                    return 66;
+                }
                 if (input.StartsWith("%") && input.Length > 1)
                 {
                     string numberPart = input.Substring(1);

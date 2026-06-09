@@ -1,11 +1,5 @@
 ﻿using RemnaBotService.Eternal_Dragon;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TwitchLib.Client.Events;
-using TwitchLib.Communication.Interfaces;
 
 namespace RemnaBotService.TwitchBot
 {
@@ -23,22 +17,39 @@ namespace RemnaBotService.TwitchBot
         }
         public async Task<string> GetUserInputAsync(string username)
         {
-
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(600));
             var tcs = new TaskCompletionSource<string>();
-
             void MessageReceivedHandler(object? sender, OnMessageReceivedArgs e)
             {
-                if (e.ChatMessage.Username == username)
+                if (e.ChatMessage.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
                 {
-                    _client.Client.OnMessageReceived -= MessageReceivedHandler; // Use client.Client
-                    tcs.SetResult(e.ChatMessage.Message);
+                    tcs.TrySetResult(e.ChatMessage.Message);
                 }
             }
 
-            _client.Client.OnMessageReceived += MessageReceivedHandler; // Use client.Client
+            _client.Client.OnMessageReceived += MessageReceivedHandler;
 
-            return await tcs.Task;
+
+
+
+            try
+            {
+                using (cts.Token.Register(() => tcs.TrySetCanceled()))
+                {
+                    return await tcs.Task;
+                }
+
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            finally
+            {
+                _client.Client.OnMessageReceived -= MessageReceivedHandler;
+            }
         }
+
 
         public async Task<int> GetUserSelectionAsync(string[] options, string username) // async Task<int>
         {
@@ -50,7 +61,12 @@ namespace RemnaBotService.TwitchBot
 
             while (true)
             {
-                string input = await GetUserInputAsync(username); // Await here
+                string input = await GetUserInputAsync(username);
+                if (input == null)
+                {
+                    SendGameMessage(new GameMessage { Title = "Timeout", Description = "Too slow! Game over." });
+                    return 66;
+                }
                 if (input.StartsWith("!") && input.Length > 1)
                 {
                     string numberPart = input.Substring(1);

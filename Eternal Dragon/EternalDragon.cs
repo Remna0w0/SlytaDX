@@ -1,9 +1,8 @@
 ﻿using RemnaBotService.Eternal_Dragon;
-using TwitchLib.Client.Events;
 
 namespace RemnaBotService
 {
-    public class EternalDragon 
+    public class EternalDragon
     {
         public BotMessenger _messenger { get; }
 
@@ -17,9 +16,16 @@ namespace RemnaBotService
             bool playAgain = true;
             while (playAgain)
             {
-                _messenger.SendGameMessage(new GameMessage {
+                _messenger.SendGameMessage(new GameMessage
+                {
                     Title = "Battle the Eternal Dragon!",
-                    Description = "500HP vs 1000HP.  Use your wits and a bit of lucky to outlast the Dragon!"
+                    Description = "500HP vs 1000HP.  Use your wits and a bit of luck to outlast the Dragon!"
+                });
+                _messenger.SendGameMessage(new GameMessage
+                {
+                    Title = "Battle Rules",
+                    Description = "You and the Dragon roll random damage numbers each turn. The higher number determines the attacker.\n\n" + "BRAVE: High risk! High damage, but you take more damage if the dragon counters.\n" +
+   "BLOCK: Low risk! Mitigates incoming damage to keep your HP up, while also boosting your BLOCK BUFF, giving you guaranteed power to your next attack!"
                 });
 
                 CombatDirector fight = new CombatDirector(); // Initialize CombatDirector here.
@@ -48,12 +54,6 @@ namespace RemnaBotService
 
                 } while (!fight.startGame && !fight.quitGame);
 
-                _messenger.SendGameMessage(new GameMessage
-                {
-                    Title = "Battle Rules",
-                    Description = "You and the Dragon roll random damage numbers each turn. The higher number determines the attacker.\n\n" + "BRAVE: High risk! High damage, but you take more damage if the dragon counters.\n" +
-                  "BLOCK: Low risk! Mitigates incoming damage to keep your HP up, while also boosting your BLOCK BUFF, giving you guaranteed power to your next attack!"
-                });
 
                 while (fight.startGame)
                 {
@@ -72,10 +72,16 @@ namespace RemnaBotService
                         resultMessage = fight.Brave();
                         conclusionMessage = fight.HPCheck();
                     }
-                    else
+                    else if (actionIndex == 1)
                     {
                         resultMessage = fight.Block();
                         conclusionMessage = fight.HPCheck();
+                    }
+                    else if (actionIndex == 66)
+                    {
+                        fight.startGame = false;
+                        fight.quitGame = true;
+                        return;
                     }
 
                     _messenger.SendGameMessage(new GameMessage
@@ -83,25 +89,31 @@ namespace RemnaBotService
                         Title = "Combat Results",
                         Description = $"{resultMessage}\n{conclusionMessage}"
                     });
-                    
+
                 }
 
                 if (fight.quitGame)
                 {
                     _messenger.SendGameMessage(new GameMessage { Title = "Select Screen", Description = "Restart (R) or Quit?" });
                     string input = await _messenger.GetUserInputAsync(username);
-                    if (input.Equals("%R", StringComparison.OrdinalIgnoreCase) || input.Equals("R", StringComparison.OrdinalIgnoreCase))
+
+                    if (input == null)
+                    {
+                        playAgain = false;
+                        _messenger.SendGameMessage(new GameMessage { Title = "Timeout", Description = "Timed out. Thanks for playing!" });
+                    }
+
+                    else if (input.Equals("%R", StringComparison.OrdinalIgnoreCase) || input.Equals("R", StringComparison.OrdinalIgnoreCase))
                     {
                         fight.Reset();
-                        fight.startGame = false;
+                        fight.startGame = true;
                         fight.quitGame = false;
-                        _messenger.SendGameMessage(new GameMessage { Title = "Select Screen", Description = "\n\n\n\n" });
                     }
+
                     else
                     {
                         playAgain = false;
                         _messenger.SendGameMessage(new GameMessage { Title = "Select Screen", Description = "Thanks for playing!" });
-                        Thread.Sleep(5000);
                     }
                 }
             }

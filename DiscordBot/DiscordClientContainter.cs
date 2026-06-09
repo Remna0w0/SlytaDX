@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using RemnaBotService.DiscordBot;
-using RemnaBotService.TwitchBot;
 
 namespace RemnaBotService
 {
@@ -83,7 +82,7 @@ namespace RemnaBotService
                         dm.ReceiveMessage(message.Content);
                     }
                 }
-                
+
             }
 
             if (message.Content == "%dragon")
