@@ -10,7 +10,7 @@ internal class Program
         DiscordClient.Dispose();
     }
 
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         Console.CancelKeyPress += (s, e) =>
         {
@@ -21,17 +21,28 @@ internal class Program
         };
 
         TwitchClient.SetupLogging();
-
         DiscordClient.SetupLogging();
-        TwitchClient.Initialize();
 
-        DiscordClient.Intialize();
+        await TwitchClient.Initialize();
+        await DiscordClient.Intialize();
 
 
 
         TwitchClient.OnStreamGoLive += async (sender, message) =>
         {
             ulong targetChannelId = 1293234433478099046;
+
+            var channel = await DiscordClient.GetChannelAsync(targetChannelId);
+
+            if (channel != null)
+            {
+                await DiscordClient.Say(channel, message);
+            }
+        };
+
+        TwitchClient.ArenaOpen += async (sender, message) =>
+        {
+            ulong targetChannelId = 1514442325529596036;
 
             var channel = await DiscordClient.GetChannelAsync(targetChannelId);
 

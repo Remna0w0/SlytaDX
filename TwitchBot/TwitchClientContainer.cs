@@ -31,10 +31,14 @@ public class TwitchClientContainer : TwitchLogger
     public string tourneyLink = File.ReadAllText(tourneyPath);
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
+    private bool currentlyRefreshing = false;
     private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
     private DateTime _lastRefreshAttempt = DateTime.MinValue;
     private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
+    private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
+    private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
     public event EventHandler<string> OnStreamGoLive;
+    public event EventHandler<string> ArenaOpen;
 
 
     private Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
@@ -53,20 +57,14 @@ public class TwitchClientContainer : TwitchLogger
 
         await RefreshMyToken();
 
-        if (File.Exists(accessPath))
+        if (!File.Exists(accessPath) || string.IsNullOrEmpty(API.Settings.AccessToken))
         {
-
-            API.Settings.AccessToken = File.ReadAllText(accessPath);
-        }
-        else
-        {
-            Log("CRITICAL: Access Token file missing. Bot cannot start. Check root directory");
+            Log("CRITICAL: Access Token file missing or Invalid. Bot cannot start. Check root directory");
             return;
         }
 
 
-
-        Credentials = new ConnectionCredentials(BotUsername, $"oauth:{File.ReadAllText(accessPath)}");
+        Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
         Client.OnConnected += OnConnected;
         Client.OnJoinedChannel += JoinedChannel;
         Client.OnMessageReceived += MessageReceived;
@@ -76,10 +74,19 @@ public class TwitchClientContainer : TwitchLogger
         Client.Connect();
         SetupLiveCheck();
 
-        Client.OnDisconnected += (sender, e) =>
+        Client.OnDisconnected += async (sender, e) =>
         {
-            Log("Disconnected! Attempting to reconnect...");
-            Client.Connect();
+            if (currentlyRefreshing)
+            {
+                Log("Reconnector silenced.");
+                return;
+            }
+            else
+            {
+                Log("Disconnected! Attempting to reconnect...");
+                Client.Connect();
+                return;
+            }
         };
 
 
@@ -159,15 +166,32 @@ public class TwitchClientContainer : TwitchLogger
 
             if (refreshResult != null && !string.IsNullOrEmpty(refreshResult.AccessToken) && !string.IsNullOrEmpty(refreshResult.RefreshToken))
             {
+                API.Settings.AccessToken = refreshResult.AccessToken;
+
+                if (Client.IsConnected)
+                {
+                    Log("Updating Chat Client credentials...");
+
+                    currentlyRefreshing = true;
+                    
+                    Client.Disconnect();
+
+                    await Task.Delay(500);
+
+                    Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
+                    Client.Connect();
+                    currentlyRefreshing = false;
+                }
+
                 await _fileLock.WaitAsync();
                 try
                 {
                     RefreshToken = refreshResult.RefreshToken;
 
-                    Log($"New Access Token: {refreshResult.AccessToken}");
-
                     File.WriteAllText(accessPath, refreshResult.AccessToken);
                     File.WriteAllText(refreshPath, RefreshToken);
+                    Log("Tokens refreshed and API updated!");
+                    Log($"New Access Token: {API.Settings.AccessToken}");
                 }
                 finally
                 {
@@ -185,114 +209,145 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    private bool IsOnCooldown(string cooldownKey, TimeSpan cooldownLength)
+    {
+        if (_cooldowns.TryGetValue(cooldownKey, out DateTime lastUsedTime))
+        {
+            if (DateTime.Now - lastUsedTime < cooldownLength)
+            {
+                return true;
+            }
+        }
+        _cooldowns[cooldownKey] = DateTime.Now;
+        return false;
+    }
 
 
 
     private async void ChatCommand(object? sender, OnChatCommandReceivedArgs e)
     {
+        string username = e.Command.ChatMessage.Username;
         try
         {
-            if (e.Command.CommandText.Equals("beep", StringComparison.OrdinalIgnoreCase))
-            {
-                Say("Boop!");
-            }
-            else if (e.Command.CommandText.Equals("id", StringComparison.OrdinalIgnoreCase) || (e.Command.CommandText.Equals("arena", StringComparison.OrdinalIgnoreCase)))
-            {
-                await _fileLock.WaitAsync();
-                try
-                {
-                    if (File.Exists(arenaIDPath))
-                    {
-                        Say(File.ReadAllText(arenaIDPath));
-                    }
-                    else
-                    {
-                        Log("ATTENTION: Arena ID file missing. Check root. Returning default response.");
-                        Say("No arena open!");
-                    }
-                }
-                finally { _fileLock.Release(); }
+            string command = e.Command.CommandText.ToLowerInvariant();
 
-            }
-            else if (e.Command.CommandText.Equals("discord", StringComparison.OrdinalIgnoreCase))
+            switch (command)
             {
-                Say("You can join the discord at https://discord.gg/vtZtMAVVMh");
-            }
-            else if (e.Command.CommandText.Equals("dragon", StringComparison.OrdinalIgnoreCase))
-            {
-                string username = e.Command.ChatMessage.Username;
+                case "beep":
+                    Say("Boop!");
+                    break;
 
-                if (!activeGames.ContainsKey(username))
-                {
-                    var messenger = new TwitchMessenger(this);
-                    var game = new EternalDragon(messenger);
-
-                    try
-                    {
-                        await game.Dragon(username); // Await the game
-                    }
-                    finally
-                    {
-                        activeGames.Remove(username); // Ensure removal even if error
-                    }
-                }
-                else
-                {
-                    Say($"{username}, you already have a Dragon game running!");
-                }
-            }
-            else if (e.Command.CommandText.Equals("tourney", StringComparison.OrdinalIgnoreCase))
-            {
-                await _fileLock.WaitAsync();
-                try
-                {
-                    if (File.Exists(tourneyPath))
-                    {
-                        Say(tourneyLink);
-                    }
-                    else
-                    {
-                        Log("ATTENTION: Tourney Link file missing. Check root. Returning default response");
-                        Say("No tournies open!");
-                    }
-                }
-                finally { _fileLock.Release(); }
-
-            }
-            else if (e.Command.CommandText.Equals("lurk", StringComparison.OrdinalIgnoreCase))
-            {
-                Say("I see you big dog!");
-            }
-            else if (e.Command.CommandText.Equals("setid", StringComparison.OrdinalIgnoreCase) && (e.Command.ChatMessage.IsModerator || e.Command.ChatMessage.IsBroadcaster))
-            {
-                if (e.Command.ArgumentsAsList.Count > 0)
-                {
+                case "join":
+                case "id":
+                case "arena":
                     await _fileLock.WaitAsync();
                     try
                     {
                         if (File.Exists(arenaIDPath))
                         {
-                            string newID = e.Command.ArgumentsAsList[0];
-                            File.WriteAllText(arenaIDPath, newID);
-                            Say($"ID updated to: {newID}");
+                            Say(File.ReadAllText(arenaIDPath));
                         }
                         else
                         {
-                            Log("ATTENTION: Arena ID file missing. Check root. Warning command user.");
-                            Say("Error! Contact host!");
+                            Log("ATTENTION: Arena ID file missing. Check root. Returning default response.");
+                            Say("No arena open!");
                         }
                     }
                     finally { _fileLock.Release(); }
+                    break;
 
-                }
-                else
-                {
-                    Say($"{e.Command.ChatMessage.Username}, please provide an ID!");
-                }
-            }
-            else if (e.Command.CommandText.Equals("commands", StringComparison.OrdinalIgnoreCase))
-            {
-                Say("!beep, !id, !arena, !discord, !dragon, !tourney");
+                case "server":
+                case "discord":
+                    Say("You can join the discord at https://discord.gg/vtZtMAVVMh");
+                    break;
+
+
+                case "tourney":
+                    await _fileLock.WaitAsync();
+                    try
+                    {
+                        if (File.Exists(tourneyPath))
+                        {
+                            Say(tourneyLink);
+                        }
+                        else
+                        {
+                            Log("ATTENTION: Tourney Link file missing. Check root. Returning default response");
+                            Say("No tournies open!");
+                        }
+                    }
+                    finally { _fileLock.Release(); }
+                    break;
+
+                case "lurk":
+                    Say("I see you big dog!");
+                    break;
+
+                case "setid":
+                    if (e.Command.ChatMessage.IsModerator || e.Command.ChatMessage.IsBroadcaster)
+                    {
+                        if (e.Command.ArgumentsAsList.Count > 0)
+                        {
+                            await _fileLock.WaitAsync();
+                            try
+                            {
+                                if (File.Exists(arenaIDPath))
+                                {
+                                    string newID = e.Command.ArgumentsAsList[0];
+                                    File.WriteAllText(arenaIDPath, newID);
+                                    arenaID = newID;
+                                    Say($"ID updated to: {newID}");
+                                }
+                                else
+                                {
+                                    Log("ATTENTION: Arena ID file missing. Check root. Warning command user.");
+                                    Say("Error! Contact host!");
+                                }
+                            }
+                            finally { _fileLock.Release(); }
+                        }
+                        else
+                        {
+                            Say($"{e.Command.ChatMessage.Username}, please provide an ID!");
+                        }
+                    }
+                    break;
+
+                case "openarena":
+                    if (e.Command.ChatMessage.IsModerator || e.Command.ChatMessage.IsBroadcaster)
+                    {
+                        if (IsOnCooldown("openarena", _standardCooldown))
+                        {
+                            Log("openarena is on global cooldown.");
+                            break;
+                        }
+                        Say("Sending arena info to the discord server!");
+                        ArenaOpen?.Invoke(this, $"<@1514411853466308669>, a stream arena is open!\nID:{arenaID}");
+                    }
+                    break;
+
+                case "followage":
+                    // For future implementation
+                    string followageKey = $"followage_{username}";
+
+                    if (IsOnCooldown(followageKey, TimeSpan.FromMinutes(1)))
+                    {
+                        Log($"followage is on cooldown for {username}.");
+                        break;
+                    }
+
+                    // API logic here
+                    Say($"{username}, you have been following for 3 months!");
+                    break;
+
+                case "commands":
+                    Say("!beep, !id, !arena, !discord, !tourney");
+                    break;
+
+                default:
+                    Say("Unrecognized command.");
+                    break;
+
             }
         }
         catch (Exception ex)
@@ -318,7 +373,7 @@ public class TwitchClientContainer : TwitchLogger
     private void JoinedChannel(object? sender, OnJoinedChannelArgs e)
     {
         Log($"Joined Channel: {e.Channel}");
-        Say("Hi friend!");
+        Say("Ready!");
     }
 
     private string FormatTimeSpan(TimeSpan timeSpan)
