@@ -10,8 +10,7 @@ namespace RemnaBotService.TwitchBot
 
         public void SendGameMessage(GameMessage msg)
         {
-            // Twitch doesn't support embeds, so just send the text
-            // We prioritize the Description if there's no plain Text
+
             string output = !string.IsNullOrEmpty(msg.Text) ? msg.Text : $"{msg.Title}: {msg.Description}";
             _client.Say(output);
         }
