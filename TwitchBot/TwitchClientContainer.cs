@@ -322,7 +322,7 @@ public class TwitchClientContainer : TwitchLogger
                             break;
                         }
                         Say("Sending arena info to the discord server!");
-                        ArenaOpen?.Invoke(this, $"<@1514411853466308669>, a stream arena is open!\nID:{arenaID}");
+                        ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {arenaID}");
                     }
                     break;
 
