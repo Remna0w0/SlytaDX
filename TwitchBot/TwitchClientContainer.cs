@@ -1,9 +1,13 @@
 ﻿using RemnaBotService.TwitchBot;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
+using TwitchLib.Api.Helix;
+using TwitchLib.Api.Helix.Models.Channels.GetChannelFollowers;
+using TwitchLib.Api.Interfaces;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
+using TwitchLib.Communication.Events;
 
 namespace RemnaBotService;
 
@@ -24,6 +28,7 @@ public class TwitchClientContainer : TwitchLogger
     static string accessPath = Path.Combine(baseDir, "Access Token.txt");
     private string streamName = "remnapi";
     public string BotUsername = "SlytaBot";
+    public string streamerID;
     public string Secret = File.ReadAllText(secretPath);
     public string ClientID = File.ReadAllText(clientIdPath);
     public string RefreshToken = File.ReadAllText(refreshPath);
@@ -39,6 +44,7 @@ public class TwitchClientContainer : TwitchLogger
     private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
     public event EventHandler<string> OnStreamGoLive;
     public event EventHandler<string> ArenaOpen;
+    
 
 
     private Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
@@ -69,10 +75,12 @@ public class TwitchClientContainer : TwitchLogger
         Client.OnJoinedChannel += JoinedChannel;
         Client.OnMessageReceived += MessageReceived;
         Client.OnChatCommandReceived += ChatCommand;
-        Client.OnLog += OnLog;
         Client.Initialize(Credentials);
-        Client.Connect();
+        await Client.ConnectAsync();
         SetupLiveCheck();
+        await ValidateTokenScopes();
+        await GetStreamerID();
+
 
         Client.OnDisconnected += async (sender, e) =>
         {
@@ -84,13 +92,30 @@ public class TwitchClientContainer : TwitchLogger
             else
             {
                 Log("Disconnected! Attempting to reconnect...");
-                Client.Connect();
+                await Client.ConnectAsync();
                 return;
             }
         };
 
 
         initializationCompletionSource.SetResult(); // Signal initialization complete
+    }
+
+    public async Task ValidateTokenScopes()
+    {
+        try
+        {
+            var validation = await API.Auth.ValidateAccessTokenAsync(File.ReadAllText(accessPath));
+
+            Log("--- Token Scope Validation ---");
+            Log($"Client ID: {validation.ClientId}");
+            Log($"Scopes: {string.Join(", ", validation.Scopes)}");
+            Log("------------------------------");
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to validate token: {ex.Message}");
+        }
     }
 
     private void SetupLiveCheck()
@@ -146,6 +171,18 @@ public class TwitchClientContainer : TwitchLogger
 
     }
 
+    private async Task GetStreamerID()
+    {
+        var userResponse = await API.Helix.Users.GetUsersAsync(logins: new System.Collections.Generic.List<string> { streamName });
+
+        if (userResponse.Users.Length == 0)
+        {
+            Log("Broadcaster Id error, User not found");
+            return;
+        }
+        streamerID = userResponse.Users[0].Id;
+        Log("Broadcaster ID fetched.");
+    }
 
 
     public async Task RefreshMyToken()
@@ -174,12 +211,12 @@ public class TwitchClientContainer : TwitchLogger
 
                     currentlyRefreshing = true;
                     
-                    Client.Disconnect();
+                    await Client.DisconnectAsync();
 
                     await Task.Delay(500);
 
                     Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
-                    Client.Connect();
+                    await Client.ConnectAsync();
                     currentlyRefreshing = false;
                 }
 
@@ -224,12 +261,12 @@ public class TwitchClientContainer : TwitchLogger
 
 
 
-    private async void ChatCommand(object? sender, OnChatCommandReceivedArgs e)
+    private async Task ChatCommand(object? sender, OnChatCommandReceivedArgs e)
     {
-        string username = e.Command.ChatMessage.Username;
+        string username = e.ChatMessage.Username;
         try
         {
-            string command = e.Command.CommandText.ToLowerInvariant();
+            string command = e.Command.Name.ToLower();
 
             switch (command)
             {
@@ -284,7 +321,7 @@ public class TwitchClientContainer : TwitchLogger
                     break;
 
                 case "setid":
-                    if (e.Command.ChatMessage.IsModerator || e.Command.ChatMessage.IsBroadcaster)
+                    if (e.ChatMessage.UserType.Equals("moderator") || e.ChatMessage.IsBroadcaster)
                     {
                         if (e.Command.ArgumentsAsList.Count > 0)
                         {
@@ -308,13 +345,13 @@ public class TwitchClientContainer : TwitchLogger
                         }
                         else
                         {
-                            Say($"{e.Command.ChatMessage.Username}, please provide an ID!");
+                            Say($"{e.ChatMessage.Username}, please provide an ID!");
                         }
                     }
                     break;
 
                 case "openarena":
-                    if (e.Command.ChatMessage.IsModerator || e.Command.ChatMessage.IsBroadcaster)
+                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.IsBroadcaster)
                     {
                         if (IsOnCooldown("openarena", _standardCooldown))
                         {
@@ -322,37 +359,76 @@ public class TwitchClientContainer : TwitchLogger
                             break;
                         }
                         Say("Sending arena info to the discord server!");
-                        ArenaOpen?.Invoke(this, $"<@1514411853466308669>, a stream arena is open!\nID:{arenaID}");
+                        ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {arenaID}");
                     }
                     break;
 
                 case "followage":
-                    // For future implementation
-                    string followageKey = $"followage_{username}";
+                    if (string.IsNullOrEmpty(streamerID))
+                    {
+                        Log("Error: streamerID is null! Retrying fetch...");
+                        await GetStreamerID();
+                        if (string.IsNullOrEmpty(streamerID))
+                        {
+                            Say("Sorry, I don't know who the streamer is yet. Try again in a moment.");
+                            break; 
+                        }
+                    }
 
-                    if (IsOnCooldown(followageKey, TimeSpan.FromMinutes(1)))
+                    if (IsOnCooldown("followage", TimeSpan.FromMinutes(1)))
                     {
                         Log($"followage is on cooldown for {username}.");
                         break;
                     }
 
-                    // API logic here
-                    Say($"{username}, you have been following for 3 months!");
-                    break;
+                    string viewerID = e.ChatMessage.UserId;
 
-                case "commands":
-                    Say("!beep, !id, !arena, !discord, !tourney");
-                    break;
+                   
+                    API.Settings.ClientId = ClientID;
+                    API.Settings.AccessToken = File.ReadAllText(accessPath);
 
-                default:
-                    Say("Unrecognized command.");
+                    Log($"DEBUG: Attempting followage check | ViewerID: '{viewerID}' | StreamerID: '{streamerID}'");
+
+                    if (viewerID == streamerID)
+                    {
+                        Say("You can't follow yourself!");
+                        break;
+                    }
+
+                    try
+                    {
+                        var followsResponse = await API.Helix.Channels.GetChannelFollowersAsync(
+                            broadcasterId: streamerID,
+                            userId: viewerID
+                        );
+
+                        if (followsResponse.Data == null || followsResponse.Data.Length == 0)
+                        {
+                            Say($"{username} doesn't follow this channel!");
+                            break;
+                        }
+
+
+                        DateTime followedAt = DateTime.Parse(followsResponse.Data[0].FollowedAt);
+                        TimeSpan followDuration = DateTime.UtcNow - followedAt;
+
+                        Say($"{username}, you have been following for {FormatTimeSpan(followDuration)}!");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Followage API Error: {ex.Message}");
+                        Say("I don't have permission to see followers! Make sure I'm a mod and have the right scopes.");
+                    }
                     break;
 
             }
         }
+
         catch (Exception ex)
         {
             Log($"Command Error: {ex.Message}");
+            Log(ex.ToString());
+            Say("Error running command! Check logs!");
         }
     }
 
@@ -363,14 +439,15 @@ public class TwitchClientContainer : TwitchLogger
             Log("Client not connected, message not sent.");
             return;
         }
-        Client.SendMessage(Client.JoinedChannels[0], message);
+        Client.SendMessageAsync(Client.JoinedChannels[0], message);
+        Log($"I Said: {message}");
     }
 
-    private void OnLog(object? sender, OnLogArgs e) => Log($"Log: {e.Data}");
 
-    private void MessageReceived(object? sender, OnMessageReceivedArgs e) => Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
 
-    private void JoinedChannel(object? sender, OnJoinedChannelArgs e)
+    private async Task MessageReceived(object? sender, OnMessageReceivedArgs e) => Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
+
+    private async Task JoinedChannel(object? sender, OnJoinedChannelArgs e)
     {
         Log($"Joined Channel: {e.Channel}");
         Say("Ready!");
@@ -399,13 +476,13 @@ public class TwitchClientContainer : TwitchLogger
         return string.Join(", ", parts);
     }
 
-    private void OnConnected(object? sender, OnConnectedArgs e)
+    private async Task OnConnected(object? sender, TwitchLib.Client.Events.OnConnectedEventArgs e)
     {
         Log("I have connected!");
-        Client.JoinChannel(streamName);
+        await Client.JoinChannelAsync(streamName);
     }
 
-    public async Task GetInitialTokens(string authorizationCode, string redirectUri)
+    public async void GetInitialTokens(string authorizationCode, string redirectUri)
     {
         Log("Exchanging authorization code for tokens...");
         await _fileLock.WaitAsync();
@@ -422,7 +499,6 @@ public class TwitchClientContainer : TwitchLogger
 
             // Save the new refresh token to your file
             File.WriteAllText(refreshPath, RefreshToken);
-            _fileLock.Release();
         }
         catch (Exception ex)
         {
