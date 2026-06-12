@@ -12,11 +12,11 @@ internal class Program
 
     static async Task Main(string[] args)
     {
-        Console.CancelKeyPress += (s, e) =>
+         Console.CancelKeyPress += (s, e) =>
         {
             Console.WriteLine("Shutting down...");
             OnShutdown();
-            e.Cancel = true; // Prevents immediate exit, letting the code finish
+            e.Cancel = true; 
             Environment.Exit(0);
         };
 
@@ -55,7 +55,8 @@ internal class Program
 
 
         Console.ReadLine();
-
+        
+          
 
     }
 
