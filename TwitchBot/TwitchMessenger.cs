@@ -18,7 +18,7 @@ namespace RemnaBotService.TwitchBot
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(600));
             var tcs = new TaskCompletionSource<string>();
-            void MessageReceivedHandler(object? sender, OnMessageReceivedArgs e)
+            async Task MessageReceivedHandler(object? sender, OnMessageReceivedArgs e)
             {
                 if (e.ChatMessage.Username.Equals(username, StringComparison.OrdinalIgnoreCase))
                 {
