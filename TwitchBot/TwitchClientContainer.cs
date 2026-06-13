@@ -154,7 +154,7 @@ public class TwitchClientContainer : TwitchLogger
                 Log("Streamer is not LIVE! Rechecking in 60 seconds...");
             }
         }
-        catch (Exception ex) when (ex.Message.Contains("401") || ex.Message.Contains("bad credentials"))
+        catch (Exception ex) when (ex.Message.Contains("Invalid OAuth") || ex.Message.Contains("bad credentials"))
         {
             Log("Tokens expired! Refreshing tokens...");
             await RefreshMyToken();
