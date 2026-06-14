@@ -50,7 +50,6 @@ public class TwitchClientContainer : TwitchLogger
     
 
 
-    private Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
 
     private TaskCompletionSource initializationCompletionSource = new TaskCompletionSource();
     public Task InitializationComplete() => initializationCompletionSource.Task;
@@ -154,7 +153,7 @@ public class TwitchClientContainer : TwitchLogger
             else if (!live)
             {
                 isLive = false;
-                Log("Streamer is not LIVE! Rechecking in 60 seconds...");
+                Log("Streamer is OFFLINE! Rechecking in 60 seconds...");
             }
         }
         catch (Exception ex) when (ex.Message.Contains("Invalid OAuth") || ex.Message.Contains("bad credentials"))
@@ -589,7 +588,6 @@ public class TwitchClientContainer : TwitchLogger
             Log($"New Access Token: {File.ReadAllText(accessPath)}");
             Log($"New Refresh Token: {RefreshToken}");
 
-            // Save the new refresh token to your file
             File.WriteAllText(refreshPath, RefreshToken);
         }
         catch (Exception ex)
