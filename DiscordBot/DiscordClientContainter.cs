@@ -1,12 +1,16 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using RemnaBotService.DiscordBot;
+using Dapper;
+using Microsoft.Data.Sqlite;
 
 namespace RemnaBotService
 {
     class DiscordClientContainter : DiscordLogger
     {
+        
         private DiscordSocketClient _client;
+        private DatabaseService _databaseService = new DatabaseService();
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         static string tokenPath = Path.Combine(baseDir, "SlytaBot Token.txt");
         public string DisToken = File.ReadAllText(tokenPath);
@@ -16,7 +20,8 @@ namespace RemnaBotService
         {
             var config = new DiscordSocketConfig
             {
-                GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
+                GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent | GatewayIntents.GuildMembers,
+                AlwaysDownloadUsers = true
             };
 
             _client = new DiscordSocketClient(config);
@@ -29,16 +34,23 @@ namespace RemnaBotService
             _client.MessageReceived += OnMessageReceived;
 
             _client.ButtonExecuted += OnButtonExecuted;
+            _client.UserJoined += OnUserJoined;
+            _client.GuildMemberUpdated += OnGuildMemberUpdated;
 
             await _client.LoginAsync(TokenType.Bot, DisToken);
             await _client.StartAsync();
 
         }
 
-        private Task OnReady()
+        private async Task OnReady()
         {
             Log("I have connected!");
-            return Task.CompletedTask;
+            foreach (var guild in _client.Guilds)
+            {
+                await guild.DownloadUsersAsync();
+                await SyncServerMembers(guild);
+                Log($"Synced members for guild: {guild.Name}");
+            }
         }
 
         public async Task<IMessageChannel> GetChannelAsync(ulong channelID)
@@ -193,6 +205,93 @@ namespace RemnaBotService
                         await Say(channel, "Dragon game started!");
                     }
                     break;
+            }
+
+        }
+
+        public async Task SyncServerMembers(SocketGuild guild)
+        {
+            Log("Beginning server member sync....");
+
+            ulong modRoleId = 1294406629747462194;
+
+            using var db = _databaseService.GetConnection();
+            db.Open();
+
+            using var transaction = db.BeginTransaction();
+
+            try
+            {
+                int totalSynced = 0;    
+                string sql = @"INSERT OR IGNORE INTO ServerMembers (UserID, Username, JoinDate, IsModerator)
+                               VALUES (@id, @name, @joinDate, @isMod)";
+
+                foreach (var user in guild.Users)
+                {
+                    bool isMod = user.GuildPermissions.ManageMessages || user.GuildPermissions.Administrator;
+
+
+                    db.Execute(sql, new
+                    {
+                        id = user.Id.ToString(),
+                        name = user.Username,
+                        joinDate = user.JoinedAt?.DateTime ?? DateTime.Now,
+                        isMod = isMod ? 1 : 0
+                    },   transaction);
+
+                    totalSynced++;
+                }
+                
+                transaction.Commit();
+                Log($"Server member sync complete! Check and saved {totalSynced} members.");
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                Log($"Server sync error: {ex.Message}");
+            }
+        }
+
+        private async Task OnUserJoined(SocketGuildUser user)
+        {
+            string sql = @"INSERT OR IGNORE INTO ServerMembers (UserID, Username, JoinDate)
+                               VALUES (@id, @name, @joinDate)";
+
+            using var db = _databaseService.GetConnection();
+            db.Execute(sql, new
+            {
+                id = user.Id.ToString(),
+                name = user.Username,
+                joinDate = DateTime.Now
+            });
+        }
+
+        private async Task OnGuildMemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
+        {
+            var beforeUser = await before.GetOrDownloadAsync();
+
+            bool nameChanged = beforeUser != null && beforeUser.Username != after.Username;
+
+
+            bool beforeMod = beforeUser != null && (beforeUser.GuildPermissions.ManageMessages || beforeUser.GuildPermissions.Administrator);
+            bool afterMod = after.GuildPermissions.ManageMessages || after.GuildPermissions.Administrator;
+
+
+            using var db = _databaseService.GetConnection();
+
+
+            if (nameChanged)
+            {
+                string sqlName = "UPDATE ServerMembers SET Username = @name WHERE UserID = @id";
+                await db.ExecuteAsync(sqlName, new { name = after.Username, id = after.Id.ToString() });
+                Log($"User {after.Id} updated username to: {after.Username}");
+            }
+
+            if (beforeUser == null || beforeMod != afterMod)
+            {
+                string sqlMod = "UPDATE ServerMembers SET IsModerator = @isMod WHERE UserID = @id";
+                await db.ExecuteAsync(sqlMod, new { isMod = afterMod ? 1 : 0, id = after.Id.ToString() });
+                Log($"User {after.Username} moderation status updated to: {afterMod}");
             }
         }
     }

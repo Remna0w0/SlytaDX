@@ -1,4 +1,6 @@
-﻿using RemnaBotService.TwitchBot;
+﻿using Dapper;
+using Discord.WebSocket;
+using RemnaBotService.TwitchBot;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Api.Helix;
@@ -20,6 +22,7 @@ public class TwitchClientContainer : TwitchLogger
     public TwitchClient Client = new TwitchClient();
     public ConnectionCredentials Credentials;
     public TwitchAPI API;
+    DatabaseService _databaseService = new DatabaseService();
     static string tourneyPath = Path.Combine(baseDir, "tourney link.txt");
     static string arenaIDPath = Path.Combine(baseDir, "arena ID.txt");
     static string secretPath = Path.Combine(baseDir, "twitch secret.txt");
@@ -80,7 +83,7 @@ public class TwitchClientContainer : TwitchLogger
         SetupLiveCheck();
         await ValidateTokenScopes();
         await GetStreamerID();
-
+        await SyncFollowers();
 
         Client.OnDisconnected += async (sender, e) =>
         {
@@ -321,7 +324,7 @@ public class TwitchClientContainer : TwitchLogger
                     break;
 
                 case "setid":
-                    if (e.ChatMessage.UserType.Equals("moderator") || e.ChatMessage.IsBroadcaster)
+                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
                     {
                         if (e.Command.ArgumentsAsList.Count > 0)
                         {
@@ -351,7 +354,7 @@ public class TwitchClientContainer : TwitchLogger
                     break;
 
                 case "openarena":
-                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.IsBroadcaster)
+                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
                     {
                         if (IsOnCooldown("openarena", _standardCooldown))
                         {
@@ -432,6 +435,55 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    public async Task SyncFollowers()
+    {
+        Log("Starting full follower sync, please wait...");
+
+       
+        using var db = _databaseService.GetConnection();
+        db.Open();
+        using var transaction = db.BeginTransaction();
+
+        try
+        {
+            int totalSynced = 0;
+            string followCursor = null;
+
+            do
+            {
+
+                var followList = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, after: followCursor, first: 100);
+
+
+
+                foreach (var follower in followList.Data)
+                {
+     
+                    string sql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator)
+                               VALUES (@id, @name, @joinDate, 0)";
+
+                    db.Execute(sql, new
+                    {
+                        id = follower.UserId.ToString(),
+                        name = follower.UserName,
+                        joinDate = DateTime.Parse(follower.FollowedAt)
+                    }, transaction);
+
+                    totalSynced++;
+                }
+                followCursor = followList.Pagination?.Cursor;
+            } while (followCursor != null);
+
+            transaction.Commit();
+            Log($"Sync Complete! {totalSynced} followers checked and saved.");
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            Log($"Follower Sync error: {ex.Message}");
+        }
+    }
+
     public void Say(string message)
     {
         if (!Client.IsConnected)
@@ -445,7 +497,45 @@ public class TwitchClientContainer : TwitchLogger
 
 
 
-    private async Task MessageReceived(object? sender, OnMessageReceivedArgs e) => Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
+    private async Task MessageReceived(object? sender, OnMessageReceivedArgs e)
+    {
+        Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
+        bool isMod = e.ChatMessage.UserDetail.IsModerator;
+        string userID = e.ChatMessage.UserId.ToString();
+
+        using var db = _databaseService.GetConnection();
+        string checkSql = "SELECT COUNT(1) FROM Viewers WHERE UserID = @id";
+        int exists = db.ExecuteScalar<int>(checkSql, new { id = userID });
+
+        if (exists == 0)
+        {
+            var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
+            DateTime followDate = DateTime.Now;
+            if (followCheck.Data.Length > 0)
+            {
+                followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
+            }
+            string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator)
+                               VALUES (@id, @name, @joinDate, @isMod)";
+            db.Execute(insertSql, new
+            {
+                id = userID,
+                name = e.ChatMessage.Username,
+                joinDate = followDate,
+                isMod = isMod ? 1 : 0
+            });
+            Log($"New follower {e.ChatMessage.Username} added to the database!");
+        }
+        else
+        {
+            string updateSql = "UPDATE Viewers SET IsModerator = @isMod WHERE UserID = @id";
+            db.Execute(updateSql, new
+            {
+                isMod = isMod ? 1 : 0,
+                id = userID
+            });
+        }
+    }
 
     private async Task JoinedChannel(object? sender, OnJoinedChannelArgs e)
     {
@@ -485,6 +575,8 @@ public class TwitchClientContainer : TwitchLogger
     public async void GetInitialTokens(string authorizationCode, string redirectUri)
     {
         Log("Exchanging authorization code for tokens...");
+
+        API = new TwitchAPI();
         await _fileLock.WaitAsync();
         try
         {
