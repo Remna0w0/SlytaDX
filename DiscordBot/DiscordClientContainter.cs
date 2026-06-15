@@ -243,7 +243,7 @@ namespace RemnaBotService
                 }
                 
                 transaction.Commit();
-                Log($"Server member sync complete! Check and saved {totalSynced} members.");
+                Log($"Server member sync complete! Checked and saved {totalSynced} members.");
             }
             catch (Exception ex)
             {

@@ -6,7 +6,7 @@ namespace RemnaBotService
     {
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        static string fileLog = Path.Combine(baseDir, "twitchbot log.txt");
+        static string fileLog = Path.Combine(baseDir, "Log/twitchbot log.txt");
 
         public event Action<string> OnOutputLog;
 
