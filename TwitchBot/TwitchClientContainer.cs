@@ -1,15 +1,9 @@
 ﻿using Dapper;
-using Discord.WebSocket;
-using RemnaBotService.TwitchBot;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
-using TwitchLib.Api.Helix;
-using TwitchLib.Api.Helix.Models.Channels.GetChannelFollowers;
-using TwitchLib.Api.Interfaces;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
-using TwitchLib.Communication.Events;
 
 namespace RemnaBotService;
 
@@ -23,12 +17,14 @@ public class TwitchClientContainer : TwitchLogger
     public ConnectionCredentials Credentials;
     public TwitchAPI API;
     DatabaseService _databaseService = new DatabaseService();
-    static string tourneyPath = Path.Combine(baseDir, "tourney link.txt");
-    static string arenaIDPath = Path.Combine(baseDir, "arena ID.txt");
-    static string secretPath = Path.Combine(baseDir, "twitch secret.txt");
-    static string clientIdPath = Path.Combine(baseDir, "bot client ID.txt");
-    static string refreshPath = Path.Combine(baseDir, "Refresh Token.txt");
-    static string accessPath = Path.Combine(baseDir, "Access Token.txt");
+    static string configDir = Path.Combine(baseDir, "Config");
+    static string miscDir = Path.Combine(baseDir, "Misc");
+    static string tourneyPath = Path.Combine(miscDir, "tourney link.txt");
+    static string arenaIDPath = Path.Combine(miscDir, "arena ID.txt");
+    static string secretPath = Path.Combine(configDir, "twitch secret.txt");
+    static string clientIdPath = Path.Combine(configDir, "bot client ID.txt");
+    static string refreshPath = Path.Combine(configDir, "Refresh Token.txt");
+    static string accessPath = Path.Combine(configDir, "Access Token.txt");
     private string streamName = "remnapi";
     public string BotUsername = "SlytaBot";
     public string streamerID;
@@ -47,7 +43,7 @@ public class TwitchClientContainer : TwitchLogger
     private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
     public event EventHandler<string> OnStreamGoLive;
     public event EventHandler<string> ArenaOpen;
-    
+
 
 
 
@@ -212,7 +208,7 @@ public class TwitchClientContainer : TwitchLogger
                     Log("Updating Chat Client credentials...");
 
                     currentlyRefreshing = true;
-                    
+
                     await Client.DisconnectAsync();
 
                     await Task.Delay(500);
@@ -273,12 +269,23 @@ public class TwitchClientContainer : TwitchLogger
             switch (command)
             {
                 case "beep":
+                    if (IsOnCooldown("beep", _standardCooldown))
+                    {
+                        Log("beep is on cooldown.");
+                        break;
+                    }
                     Say("Boop!");
+                    LogCommand(e.ChatMessage.UserId, "beep");
                     break;
 
                 case "join":
                 case "id":
                 case "arena":
+                    if (IsOnCooldown("arena", TimeSpan.FromSeconds(10)))
+                    {
+                        Log("arena is on cooldown.");
+                        break;
+                    }
                     await _fileLock.WaitAsync();
                     try
                     {
@@ -293,15 +300,23 @@ public class TwitchClientContainer : TwitchLogger
                         }
                     }
                     finally { _fileLock.Release(); }
+                    LogCommand(e.ChatMessage.UserId, "arena");
                     break;
 
                 case "server":
                 case "discord":
                     Say("You can join the discord at https://discord.gg/vtZtMAVVMh");
+                    LogCommand(e.ChatMessage.UserId, "discord");
                     break;
 
-
+                case "bracket":
                 case "tourney":
+                    if (IsOnCooldown("tourney", _standardCooldown))
+                    {
+                        Log("tourney is on cooldown.");
+                        break;
+                    }
+
                     await _fileLock.WaitAsync();
                     try
                     {
@@ -316,10 +331,18 @@ public class TwitchClientContainer : TwitchLogger
                         }
                     }
                     finally { _fileLock.Release(); }
+                    LogCommand(e.ChatMessage.UserId, "tourney");
                     break;
 
                 case "lurk":
+                    if (IsOnCooldown("lurk", TimeSpan.FromSeconds(5)))
+                    {
+                        Log("lurk is on cooldown.");
+                        break;
+                    }
+
                     Say("I see you big dog!");
+                    LogCommand(e.ChatMessage.UserId, "lurk");
                     break;
 
                 case "setid":
@@ -350,6 +373,7 @@ public class TwitchClientContainer : TwitchLogger
                             Say($"{e.ChatMessage.Username}, please provide an ID!");
                         }
                     }
+                    LogCommand(e.ChatMessage.UserId, "setid");
                     break;
 
                 case "openarena":
@@ -363,6 +387,7 @@ public class TwitchClientContainer : TwitchLogger
                         Say("Sending arena info to the discord server!");
                         ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {arenaID}");
                     }
+                    LogCommand(e.ChatMessage.UserId, "openarena");
                     break;
 
                 case "followage":
@@ -373,19 +398,19 @@ public class TwitchClientContainer : TwitchLogger
                         if (string.IsNullOrEmpty(streamerID))
                         {
                             Say("Sorry, I don't know who the streamer is yet. Try again in a moment.");
-                            break; 
+                            break;
                         }
                     }
 
-                    if (IsOnCooldown("followage", TimeSpan.FromMinutes(1)))
+                    if (IsOnCooldown("followage", _standardCooldown))
                     {
-                        Log($"followage is on cooldown for {username}.");
+                        Log("followage is on cooldown.");
                         break;
                     }
 
                     string viewerID = e.ChatMessage.UserId;
 
-                   
+
                     API.Settings.ClientId = ClientID;
                     API.Settings.AccessToken = File.ReadAllText(accessPath);
 
@@ -421,6 +446,7 @@ public class TwitchClientContainer : TwitchLogger
                         Log($"Followage API Error: {ex.Message}");
                         Say("I don't have permission to see followers! Make sure I'm a mod and have the right scopes.");
                     }
+                    LogCommand(e.ChatMessage.UserId, "followage");
                     break;
 
             }
@@ -438,7 +464,7 @@ public class TwitchClientContainer : TwitchLogger
     {
         Log("Starting full follower sync, please wait...");
 
-       
+
         using var db = _databaseService.GetConnection();
         db.Open();
         using var transaction = db.BeginTransaction();
@@ -457,7 +483,7 @@ public class TwitchClientContainer : TwitchLogger
 
                 foreach (var follower in followList.Data)
                 {
-     
+
                     string sql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator)
                                VALUES (@id, @name, @joinDate, 0)";
 
@@ -514,20 +540,21 @@ public class TwitchClientContainer : TwitchLogger
             {
                 followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
             }
-            string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator)
-                               VALUES (@id, @name, @joinDate, @isMod)";
+            string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator, Message_Count)
+                               VALUES (@id, @name, @joinDate, @isMod, @msgCount)";
             db.Execute(insertSql, new
             {
                 id = userID,
                 name = e.ChatMessage.Username,
                 joinDate = followDate,
-                isMod = isMod ? 1 : 0
+                isMod = isMod ? 1 : 0,
+                msgCount = 1
             });
             Log($"New follower {e.ChatMessage.Username} added to the database!");
         }
         else
         {
-            string updateSql = "UPDATE Viewers SET IsModerator = @isMod WHERE UserID = @id";
+            string updateSql = "UPDATE Viewers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
             db.Execute(updateSql, new
             {
                 isMod = isMod ? 1 : 0,
@@ -569,6 +596,23 @@ public class TwitchClientContainer : TwitchLogger
     {
         Log("I have connected!");
         await Client.JoinChannelAsync(streamName);
+    }
+
+    public void LogCommand(string userId, string commandName)
+    {
+        try
+        {
+            using var db = _databaseService.GetConnection();
+
+            string sql = @"INSERT INTO CommandLog (UserID, CommandName, Timestamp) 
+                   VALUES (@userId, @commandName, CURRENT_TIMESTAMP)";
+
+            db.Execute(sql, new { userId, commandName });
+        }
+        catch (Exception ex)
+        {
+            Log($"[DATABASE ERROR] Could not log command {commandName}: {ex.Message}");
+        }
     }
 
     public async void GetInitialTokens(string authorizationCode, string redirectUri)
