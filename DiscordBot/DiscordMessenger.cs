@@ -1,6 +1,7 @@
 ﻿using Discord;
+using Discord.WebSocket;
 using RemnaBotService.Eternal_Dragon;
-using System.Text;
+using System.Threading.Tasks;
 
 namespace RemnaBotService.DiscordBot
 {
@@ -10,6 +11,7 @@ namespace RemnaBotService.DiscordBot
         private readonly IMessageChannel _channel;
         private readonly string _username;
         private TaskCompletionSource<string> _tcs;
+        private TaskCompletionSource<string> _buttonTcs;
         public DiscordMessenger(DiscordClientContainter client, IMessageChannel channel, string username)
         {
             _client = client;
@@ -19,7 +21,9 @@ namespace RemnaBotService.DiscordBot
 
 
         public void SendMessage(string message) => _client.Say(_channel, message);
-        public void SendGameMessage(GameMessage msg)
+        public void SendGameMessage(GameMessage msg) => SendGameMessageWithComponents(msg, null);
+
+        private void SendGameMessageWithComponents(GameMessage msg, MessageComponent components = null)
         {
             if (msg.IsEmbed)
             {
@@ -28,15 +32,17 @@ namespace RemnaBotService.DiscordBot
                     color = Color.Green;
                 else if (msg.Description.Contains("Defeat"))
                     color = Color.Red;
+
                 var builder = new EmbedBuilder()
                     .WithTitle(msg.Title)
                     .WithDescription(msg.Description)
                     .WithColor(color);
-                _client.SayEmbed(_channel, builder.Build());
+
+                _channel.SendMessageAsync(embed: builder.Build(), components: components);
             }
             else
             {
-                _client.Say(_channel, msg.Text);
+                _channel.SendMessageAsync(text: msg.Text, components: components);
             }
         }
 
@@ -58,47 +64,81 @@ namespace RemnaBotService.DiscordBot
             }
         }
 
-        public async Task<int> GetUserSelectionAsync(string[] options, string username) // async Task<int>
+        public async Task<int> GetUserSelectionAsync(string[] options, string username)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("Use %1, %2, etc. to select:");
+            var componentBuilder = new ComponentBuilder();
+
             for (int i = 0; i < options.Length; i++)
             {
-                sb.AppendLine($"{i + 1}. {options[i]}");
+                componentBuilder.WithButton(options[i], $"btn_{i}_{username}", ButtonStyle.Primary);
             }
 
-            SendGameMessage(new GameMessage
+            SendGameMessageWithComponents(new GameMessage
             {
-                Title = "Choices",
-                Description = sb.ToString()
-            });
+                Title = "Action Select",
+                Description = "Click one of the tactical buttons below to execute your choice:"
+            }, componentBuilder.Build());
 
-            while (true)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(600));
+            _buttonTcs = new TaskCompletionSource<string>();
+
+            using (cts.Token.Register(() => _buttonTcs.TrySetCanceled()))
             {
+                try
+                {
+                    _client.GetInteractionClient().ButtonExecuted += HandleButtonInteraction;
+                    string customId = await _buttonTcs.Task;
 
-                string input = await GetUserInputAsync(username);
-                if (input == null)
+                    string[] parts = customId.Split('_');
+                    return int.Parse(parts[1]);
+                }
+                catch (OperationCanceledException)
                 {
                     SendGameMessage(new GameMessage { Title = "Timeout", Description = "Too slow! Game over." });
                     return 66;
                 }
-                if (input.StartsWith("%") && input.Length > 1)
+                finally
                 {
-                    string numberPart = input.Substring(1);
-                    if (int.TryParse(numberPart, out int selection) && selection >= 1 && selection <= options.Length)
-                    {
-                        return selection - 1;
-                    }
-                }
-                else
-                {
-                    SendGameMessage(new GameMessage
-                    {
-                        Title = "Invalid Input",
-                        Description = "Please use %1, %2, etc. to select your choice."
-                    });
+                    _client.GetInteractionClient().ButtonExecuted -= HandleButtonInteraction;
                 }
             }
+        }
+
+        private Task HandleButtonInteraction(SocketMessageComponent interaction)
+        {
+            if (interaction.Data.CustomId.StartsWith("btn_"))
+            {
+                string[] parts = interaction.Data.CustomId.Split('_');
+                string targetUser = parts[2];
+
+                // Stop other users from messing with someone else's instance menu
+                if (interaction.User.Username != targetUser)
+                {
+                    interaction.RespondAsync("This is not your battle menu!", ephemeral: true);
+                    return Task.CompletedTask;
+                }
+
+                var disabledComponents = new ComponentBuilder();
+                foreach (var component in interaction.Message.Components)
+                {
+                    if (component is ActionRowComponent row)
+                    {
+                        foreach (var button in row.Components.OfType<ButtonComponent>())
+                        {
+                            disabledComponents.WithButton(
+                                label: button.Label,
+                                customId: button.CustomId,
+                                style: button.Style,
+                                disabled: true);
+                        }
+                    }
+                }
+
+                interaction.UpdateAsync(msg => msg.Components = disabledComponents.Build());
+
+                _buttonTcs?.TrySetResult(interaction.Data.CustomId);
+            }
+            return Task.CompletedTask;
         }
 
         public void ReceiveMessage(string content)
