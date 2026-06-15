@@ -7,6 +7,7 @@
         public bool HasMighty { get; set; }
         public bool CanBlock { get; set; } = true;
         public int DodgeBonus { get; set; } = 0;
+        public bool SpellBoosted { get; set; } = false;
         public double SlipCounterMultiplier { get; set; } = 1.75;
         public bool StartsChanneled { get; set; } = false;
     }

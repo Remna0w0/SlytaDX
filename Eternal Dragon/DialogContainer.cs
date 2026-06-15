@@ -135,7 +135,16 @@
 },
 
 
-
+{
+     "BlockStalemate", new string[]{
+         "You and the dragon stand your ground in defensive positions, sizing each other up out of respect for your mutual power..."
+     }
+},
+{
+     "DodgeStalemate", new string[]{
+         "You and the dragon flash around the battlefield at break-neck speeds, both trying to gain an advantageous position before committing to an assault..."
+     }
+},
 {
     "PlayerFlee", new string[] {
         "Terrified and out of your depth, you drop your weapons and bolt through the exit, knowing you stand no chance!"

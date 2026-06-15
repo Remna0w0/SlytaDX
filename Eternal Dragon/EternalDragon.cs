@@ -20,7 +20,7 @@ namespace RemnaBotService
                 _messenger.SendGameMessage(new GameMessage
                 {
                     Title = "Battle the Eternal Dragon!",
-                    Description = "500HP vs 1000HP.  Use your wits and a bit of luck to outlast the Dragon!"
+                    Description = "750HP vs 1200HP.  Use your wits and a bit of luck to outlast the Dragon!"
                 });
                 _messenger.SendGameMessage(new GameMessage
                 {
@@ -68,13 +68,20 @@ namespace RemnaBotService
 
                 while (fight.startGame)
                 {
-                    string statusList = fight._player.Statuses.Count > 0
-                        ? string.Join(", ", fight._player.Statuses.Keys)
-                        : "None";
 
                     string[] actionOptions = { "BRAVE", "BLOCK", "DODGE", "SPELL", "FLEE" };
                     int actionIndex = await _messenger.GetUserSelectionAsync(actionOptions, username);
                     await Task.Delay(750);
+
+                    if (actionIndex == 1 && !fight.weapon.CanBlock)
+                    {
+                        _messenger.SendGameMessage(new GameMessage
+                        {
+                            Title = "Action Denied",
+                            Description = $"⚠️ Your **{fight.weapon.Name}** cannot be used to Block! Choose another tactical action."
+                        });
+                        continue;
+                    }
 
                     CombatDirector.TurnIntent playerIntent = actionIndex switch
                     {
@@ -114,6 +121,9 @@ namespace RemnaBotService
 
                     if (!gameOver)
                     {
+                        string statusList = fight._player.Statuses.Count > 0
+                        ? string.Join(", ", fight._player.Statuses.Keys)
+                        : "None";
                         _messenger.SendGameMessage(new GameMessage
                         {
                             Title = "Combat Tactical Menu",

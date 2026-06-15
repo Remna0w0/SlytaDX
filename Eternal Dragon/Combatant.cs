@@ -6,7 +6,7 @@
         public int HP { get; set; }
         public int BasePower { get; set; }
         public int BaseBuff { get; set; }
-
+        public double SpellBase { get; set; } = 70;
         public bool IsFirstEnragedAttack { get; set; } = true;
 
         public Dictionary<string, double> Statuses { get; set; } = new Dictionary<string, double>();
@@ -23,7 +23,7 @@
         {
             if (isSpell)
             {
-                double spellTotal = 70;
+                double spellTotal = SpellBase;
                 if (Statuses.ContainsKey("Channeled"))
                 {
                     spellTotal *= Statuses["Channeled"];
