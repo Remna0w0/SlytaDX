@@ -6,7 +6,7 @@ namespace RemnaBotService
     {
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        static string fileLog = Path.Combine(baseDir, "discordbot log.txt");
+        static string fileLog = Path.Combine(baseDir, "Log/discordbot log.txt");
 
         public event Action<string> OnOutputLog;
 
