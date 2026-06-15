@@ -1,5 +1,10 @@
-﻿using Dapper;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Dapper;
 using System.Data;
 
 namespace RemnaBotService
@@ -40,8 +45,7 @@ namespace RemnaBotService
                     IsModerator INTEGER DEFAULT 0,
                     GamesPlayed INTEGER DEFAULT 0,
                     GamesWon INTEGER DEFAULT 0,
-                    GamesLost INTEGER DEFAULT 0,
-                    Message_Count INTEGER DEFAULT 0
+                    GamesLost INTEGER DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS CommandLog (
@@ -53,7 +57,7 @@ namespace RemnaBotService
 
             connection.Execute(tableBuildScript);
 
-
+        
 
 
         }

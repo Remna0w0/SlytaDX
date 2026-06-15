@@ -2,174 +2,304 @@
 {
     public class DialogContainer
     {
-        private static readonly Dictionary<string, string[]> _dialogDatabase = new Dictionary<string, string[]>
+        public static string[] BlockStory = new string[]
         {
-// --- PLAYER INTENT PREFACES ---
-{
-    "Player_Intent_Brave", new string[] {
-        "You step forward, putting your entire body weight into a heavy, reckless assault!",
-        "With flashing eyes, you unleash a brutal, offensive onslaught with your weapon!"
-    }
-},
-{
-    "Player_Intent_Block", new string[] {
-        "You firmly plant your feet and hoist your guard, bracing for impact.",
-        "Anticipating a strike, you pull back into a rigid defensive posture."
-    }
-},
-{
-    "Player_Intent_Spell", new string[] {
-        "Mystic energy crackles around your hands as you begin weaving a complex spell structure.",
-        "You hold your weapon aloft, drawing raw arcane energy directly from the room."
-    }
-},
-{
-    "Player_Intent_Dodge", new string[] {
-        "You keep your weight light on your toes, preparing to weave away from danger.",
-        "You focus entirely on the dragon's center of mass, looking for an evasive window."
-    }
-},
+        "You raise your shield just in time, deflecting the Dragon's fiery breath!",
+        "With a swift move, you parry the Dragon's attack, minimizing the damage!",
+        "You brace yourself against the Dragon's onslaught, absorbing the blow!",
+        "Your shield holds strong, protecting you from the Dragon's claws!",
+        "You deflect the Dragon's attack with a well-timed block!",
+        "The Dragon's attack crashes against your defenses, but you stand firm!",
+        "You anticipate the Dragon's move and block with precision!",
+        "You take the hit, but your defenses mitigate the impact!",
+        "The Dragon's attack leaves you shaken, but your shield holds!",
+        "You grit your teeth and withstand the Dragon's fury!",
+        "With a grunt, you brace yourself and block the Dragon's attack!",
+        "The Dragon's attack sends tremors through your body, but you hold your ground!",
+        "You absorb the Dragon's attack, protecting yourself from the worst!",
+        "Your shield deflects the Dragon's attack, sending sparks flying!",
+        "You block the Dragon's attack with a resounding clang!",
+        "The Dragon's claws scrape against your shield, but you remain unscathed!",
+        "You deflect the Dragon's fiery breath, sending it spiraling into the sky!",
+        "With a well-placed block, you redirect the Dragon's attack!",
+        "You stand your ground, shielding yourself from the Dragon's wrath!",
+        "The Dragon's attack tests your resolve, but you do not yield!",
+        "You feel the force of the Dragon's attack, but your block holds!",
+        "The Dragon's attack leaves you winded, but your shield protects you!",
+        "With a mighty roar, you block the Dragon's attack, showcasing your strength!",
+        "You are a bulwark against the Dragon's fury, your block unwavering!",
+        "The Dragon's attack is fierce, but your block is stronger!",
+        "You have faced the Dragon's wrath and survived, your shield a testament to your courage!",
+        "The Dragon's attack is a reminder of the danger you face, but you will not falter!",
+        "You block the Dragon's attack, a symbol of your defiance against its power!",
+        "The Dragon's attack is a challenge, but you meet it with unwavering resolve!",
+        "You are the shield against the Dragon's fury, protecting yourself and those you defend!",
+        "The Dragon's attack is a test of your strength, and you have proven yourself worthy!",
+        "You have stared into the face of the Dragon's wrath and emerged victorious, your shield a symbol of your triumph!",
+        "The Dragon's claws leave deep gouges in your shield, a reminder of the battle's intensity!",
+        "You feel the heat of the Dragon's breath as it washes over your shield, but you stand firm!",
+        "With a mighty heave, you deflect the Dragon's attack, sending it crashing into the rocks!",
+        "The Dragon's attack is a tempest, but you are the unmovable mountain!",
+        "You are the shield that protects against the Dragon's fury, your block a beacon of hope!",
+        "The Dragon's attack is a challenge, and you meet it with unwavering determination!",
+        "You have faced the Dragon's wrath and emerged stronger, your shield a symbol of your resilience!",
+        "The Dragon's claws leave scratches on your shield, a testament to the battle's ferocity!",
+        "You feel the heat of the Dragon's breath as it scorches your shield, but you hold your ground!",
+        "With a mighty roar, you deflect the Dragon's attack, sending it spiraling into the abyss!",
+        "The Dragon's attack is a storm, but you are the unyielding fortress!",
+        "You are the shield against the Dragon's fury, your block a symbol of courage and strength!",
+        "The Dragon's attack is a trial, and you have proven yourself worthy!",
+        "You have stared into the face of the Dragon's wrath and emerged victorious, your shield a symbol of your unwavering spirit!"
 
-// --- DRAGON INTENT PREFACES ---
-{
-    "Dragon_Intent_Brave", new string[] {
-        "The Dragon lets out a deafening roar and lunges forward with predatory ferocity!",
-        "Baring its massive fangs, the Dragon sweeps its heavy claws forward in a terrifying assault!"
-    }
-},
-{
-    "Dragon_Intent_Block", new string[] {
-        "The Dragon curls inward, wrapping its heavily armored wings around its body like a fortress.",
-        "The ancient beast tenses its scales, shifting into an immovable defensive stance."
-    }
-},
-{
-    "Dragon_Intent_Spell", new string[] {
-        "An eerie, ancient glow sparks deep within the Dragon's throat as it channels localized magic.",
-        "Runes of primordial fire ignite along the Dragon's spine as it commands the arcane rules of the room."
-    }
-},
-{
-    "Dragon_Intent_Dodge", new string[] {
-        "Despite its massive size, the Dragon unfurls its wings to lightly hover, ready to dance backwards.",
-        "The beast shifts its weight seamlessly, preparing to slide away from your trajectory."
-    }
-},
-
-// --- DEFENSE RESOLUTION: PLAYER ---
-{
-    "Player_Block_Mitigate", new string[] {
-        "Your guard catches the brunt of the hit, absorbing a chunk of the damage but rattling your armor!"
-    }
-},
-{
-    "Player_Block_Neutralize", new string[] {
-        "An incredible block! You cleanly stonewall the attack, completely neutralizing the incoming damage!"
-    }
-},
-{
-    "Player_Block_Failure", new string[] {
-        "CRITICAL DEFENSIVE FAILURE! Your guard collapses completely, leaving you entirely unprotected!"
-    }
-},
-{
-    "Player_Dodge_Success", new string[] {
-        "You execute a perfect evasion! Slip Counter is activated, maximizing your counter-offensive potency!"
-    }
-},
-{
-    "Player_Dodge_Failure", new string[] {
-        "Your dodge falls short; you lose your footing and take the hit head-on mid-evasion!"
-    }
-},
-
-// --- DEFENSE RESOLUTION: DRAGON ---
-{
-    "Dragon_Block_Mitigate", new string[] {
-        "The Dragon's guard mitigates a piece of your attack, but your weapon still cleaves deep into its hide."
-    }
-},
-{
-    "Dragon_Block_Neutralize", new string[] {
-        "The Dragon perfectly absorbs your attack against its iron scales, taking absolutely no damage!"
-    }
-},
-{
-    "Dragon_Block_Failure", new string[] {
-        "CRITICAL FAILURE! The Dragon miscalculates its guard, exposing its vulnerable underbelly completely!"
-    }
-},
-{
-    "Dragon_Dodge_Success", new string[] {
-        "The Dragon fluidly weaves past your strike, eyes flashing as it logs a Slip Counter against you!"
-    }
-},
-{
-    "Dragon_Dodge_Failure", new string[] {
-        "The beast is too slow to move; your weapon hits the clumsy dragon dead-center mid-flight!"
-    }
-},
-
-// --- MAGICAL FLOW: PLAYER ---
-{
-    "Player_Spell_Success_Channeled", new string[] {
-        "Your arcane surge overpowers the opposition! You successfully harness the magical flow and become **Channeled**!"
-    }
-},
-{
-    "Player_Spell_Overpowered_Empowered", new string[] {
-        "Your spell is completely disrupted by a superior force! The ambient magical energy snaps back, making the Dragon **Empowered**!"
-    }
-},
-
-// --- MAGICAL FLOW: DRAGON ---
-{
-    "Dragon_Spell_Success_Channeled", new string[] {
-        "The Dragon's magical pressure crushes your initiative! The ancient beast absorbs the ambient flow and becomes **Channeled**!"
-    }
-},
-{
-    "Dragon_Spell_Overpowered_Empowered", new string[] {
-        "You manage to pierce through the Dragon's casting focus! The backfiring arcane feedback leaves you **Empowered**!"
-    }
-},
-
-
-
-{
-    "PlayerFlee", new string[] {
-        "Terrified and out of your depth, you drop your weapons and bolt through the exit, knowing you stand no chance!"
-    }
- },
-
-// --- ENDGAME RESOLUTIONS ---
-{
-    "PlayerVictory", new string[] {
-        "With a final, shattering strike, you pierce the Dragon's heart. The ancient beast lets out a final, agonizing roar before crashing heavily to the stone floor. You stand victorious, the dragon slayer of legend!",
-        "The primordial fire within the beast's throat finally flickers out. As the massive dragon collapses into the dust of its own lair, a profound silence falls over the cavern. Against all odds, you have survived and conquered!",
-        "Your weapon cleaves cleanly through the creature's final defenses. The Eternal Dragon falls, its hoard is yours, and your name will echo through history for generations to come!"
-    }
-},
-{
-    "PlayerDefeat", new string[] {
-        "The Dragon's overwhelming fury proves too much to withstand. A devastating blow shatters your guard, sending you collapsing into the darkness as the beast towers over you in triumph.",
-        "Your vision fades as the dragon's shadow completely envelops the arena. Your valiant effort ends here, leaving your story as a tragic warning to future adventurers who dare challenge the eternal beast.",
-        "With a terrifying roar, the dragon delivers a crushing final impact. Your weapon slips from your hands as you fall to the stone floor—the ancient beast remains undefeated."
-    }
-}
         };
 
-        private static readonly Random random = new Random();
-        public static string GetText(string storyPointer)
+        public static string[] BraveSuccessStory = new string[]
+    {
+        "With a mighty roar, you unleash your fury upon the Dragon!",
+        "Your blade finds its mark, piercing the Dragon's defenses!",
+        "You strike with precision, leaving the Dragon reeling in pain!",
+        "A surge of adrenaline fuels your attack, overwhelming the Dragon!",
+        "Your courage pays off as you land a solid blow!",
+        "You channel your inner strength, delivering a thunderous strike!",
+        "With a swift and decisive move, you cut through the Dragon's scales!",
+        "The Dragon falters under the force of your relentless assault!",
+        "You seize the moment and unleash a flurry of attacks!",
+        "Your attack resonates with power, shaking the very ground beneath you!",
+        "You dance around the Dragon's clumsy attacks and land a critical hit!",
+        "The Dragon roars in pain as your attack tears through its flesh!",
+        "You exploit a weakness in the Dragon's armor, dealing significant damage!",
+        "Your attack echoes through the cavern, a testament to your bravery!",
+        "The Dragon is caught off guard by your audacious move!",
+        "You unleash a primal scream as you charge towards the Dragon!",
+        "With a battle cry, you leap forward and strike with all your might!",
+        "The Dragon staggers back, surprised by the ferocity of your attack!",
+        "You feel the power coursing through your veins as you strike!",
+        "Your attack leaves a trail of fire in its wake!",
+        "You strike with the speed of lightning, leaving the Dragon little chance to react!",
+        "The Dragon is struggling against your unwavering resolve!",
+        "You fight with the heart of a lion, and your attack reflects that!",
+        "The Dragon's eyes narrow as your blade descends!",
+        "You have drawn blood, and the Dragon's rage intensifies!",
+        "Your attack is a masterpiece of skill and precision!",
+        "The Dragon's scales offer limited protection against your mighty blow!",
+        "You strike with the force of a thunderbolt, leaving the Dragon momentarily stunned!",
+        "Your attack is a whirlwind of steel, pushing back the Dragon's defenses!",
+        "You have struck a significant blow, and the Dragon's strength begins to wane!",
+        "With a cunning feint, you create an opening and strike with deadly accuracy!",
+        "The Dragon's roar turns into a snarl as your attack lands true!",
+        "You have struck a vital blow, and the Dragon's power is diminished!",
+        "Your attack is a symphony of destruction, leaving the Dragon battered and bruised!",
+        "You have proven your mettle, and the Dragon's respect (or fear) grows!",
+        "With a powerful strike, you press your advantage!",
+        "You have wounded the Dragon, but the battle is far from over!",
+        "Your attack has weakened the Dragon, but it still fights with ferocity!",
+        "You have tasted the Dragon's blood, and the scent of victory is in the air!",
+        "Your attack has broken the Dragon's concentration, giving you a chance to strike again!",
+        "The Dragon's eyes gleam with a mix of pain and fury!",
+        "You have made the Dragon bleed, and it knows that you are a worthy opponent!",
+        "Your attack has shaken the Dragon's confidence, and it begins to doubt its own strength!",
+        "You have shown the Dragon that you are not afraid to challenge it!",
+        "The Dragon's scales are scarred, and its pride is wounded!",
+        "You have pushed the Dragon to its limits, and it is beginning to tire!",
+        "Your attack has ignited a fire within you, and you are ready to finish the fight!",
+        "The Dragon's roar is a challenge, and you are eager to answer it!",
+        "You have drawn the Dragon's attention, and it knows that you are a threat!",
+        "Your attack has earned you the Dragon's respect (or fear), and the battle rages on!",
+        "The Dragon's scales are chipped, and its spirit is tested!",
+        "You have proven yourself a formidable opponent, and the Dragon knows that it is in for a long fight!",
+        "Your attack has given you the upper hand, but the Dragon is not yet defeated!",
+        "The Dragon's eyes burn with a renewed determination, and the battle intensifies!",
+        "You have drawn the Dragon's ire, and it will stop at nothing to defeat you!",
+        "Your attack has made the Dragon realize that it is not invincible!",
+        "The Dragon's scales are scarred, and its heart is filled with a mixture of rage and respect!",
+        "You have shown the Dragon that you are a force to be reckoned with, and the battle continues!",
+        "The Dragon's roar is a challenge, and you are eager to meet it head-on!",
+        "Your attack has made the Dragon realize that it is in a fight for its life!",
+        "The Dragon's scales are chipped, and its spirit is tested, but it will not yield!",
+        "You have proven yourself a worthy adversary, and the Dragon knows that it must fight with all its might to prevail!",
+        "Your attack has given you a glimmer of hope, but the Dragon is still a formidable foe!",
+        "The Dragon's eyes burn with a renewed determination, and the battle rages on with renewed intensity!"
+    };
+
+        public static string[] BraveFailureStory = new string[]
+   {
+        "Your attack falters, and the Dragon seizes the opportunity!",
+        "The Dragon anticipates your move and counters with a swift strike!",
+        "Your blade glances harmlessly off the Dragon's thick scales!",
+        "You stumble, leaving yourself open to the Dragon's attack!",
+        "The Dragon's roar echoes as it unleashes its fury upon you!",
+        "Your courage falters at the crucial moment!",
+        "The Dragon's defenses prove too strong for your attack!",
+        "You hesitate, giving the Dragon the advantage!",
+        "Your attack lacks the power to penetrate the Dragon's armor!",
+        "The Dragon laughs as your attack falls short!",
+        "You are overwhelmed by the Dragon's might!",
+        "Your attack is clumsy and ineffective!",
+        "The Dragon's scales deflect your blade with ease!",
+        "You misjudge the distance and miss your target!",
+        "The Dragon sidesteps your attack with a mocking grin!",
+        "Your attack is a desperate gamble that fails!",
+        "You are no match for the Dragon's superior strength!",
+        "Your attack is a mere annoyance to the mighty Dragon!",
+        "The Dragon's eyes gleam with malice as it prepares to strike!",
+        "You have underestimated the Dragon's power!",
+        "Your attack is a futile attempt to challenge the Dragon's dominance!",
+        "The Dragon's roar fills you with dread as it prepares to retaliate!",
+        "You have made a grave mistake in challenging the Dragon!",
+        "Your bravery has turned to recklessness, and you are punished!",
+        "The Dragon's claws rake across your armor, leaving deep gashes!",
+        "You feel the Dragon's fiery breath scorching your skin!",
+        "The Dragon's tail whips around and knocks you off your feet!",
+        "You are caught in the Dragon's whirlwind of fury!",
+        "The Dragon's teeth sink into your flesh, and you cry out in pain!",
+        "You are at the Dragon's mercy, and it shows you none!",
+        "The Dragon's attack leaves you battered and bruised!",
+        "You have faltered before the might of the Dragon, but the fight is not over!",
+        "Your spirit is tested, and your will to fight is strained!",
+        "The Dragon's power is immense, and your resilience is tested!",
+        "You have been wounded by the Dragon's fury, but you must persevere!",
+        "The Dragon's laughter echoes through the cavern, a reminder of your vulnerability!",
+        "You have challenged the Dragon and suffered a setback, but the battle continues!",
+        "The Dragon's power is formidable, and your resolve is tested!",
+        "You have been singed by the Dragon's flames, but you are not yet broken!",
+        "The Dragon's attack is a reminder of its power, and you must be cautious!",
+        "You have been humbled by the Dragon's might, but you will not yield!",
+        "The Dragon's claws leave marks on your armor, a reminder of the danger you face!",
+        "You feel the heat of the Dragon's breath as it washes over you, but you stand firm!",
+        "With a snarl, the Dragon prepares to unleash another attack!",
+        "The Dragon's power is undeniable, and your determination is tested!",
+        "You have been wounded, but you are not defeated!",
+        "The Dragon's eyes gleam with a predatory hunger!",
+        "You have challenged the Dragon, and it has responded with overwhelming force!",
+        "The Dragon's scales are a formidable defense, and your attacks have barely scratched the surface!",
+   };
+
+        public static string[] VictoryStory = new string[]
+                {
+            "With a final, desperate lunge, you deliver the coup de grâce for a glorious Victory!",
+            "The Dragon's reign of terror is over—this is your Victory, and your name will be sung in legends!",
+            "You stand over the fallen Dragon, claiming your Victory as your blade drips with its lifeblood!",
+            "Your bravery and skill have prevailed, securing a hard-fought Victory for the kingdom!",
+            "The Dragon's treasure is yours—a well-earned reward for the Victory you achieved through valor!",
+            "You have earned your place among the heroes of old; this Victory is forever etched in history!",
+            "The Dragon's defeat is a testament to your unwavering spirit and a total Victory for your will!",
+            "You have conquered the beast, and in this moment of Victory, you have conquered your own fears!",
+            "The Dragon's fall is a symbol of hope and a resounding Victory for all those who dare to dream!",
+            "You have shown the world that even the mightiest of dragons can be defeated—a Victory of courage and skill!",
+            "The Dragon's demise is a Victory for all those who have ever faced adversity and refused to give up!",
+            "You have emerged from the battle with a Victory that leaves you stronger and more determined than ever!",
+            "The Dragon's defeat is a Victory and a reminder that even in the darkest of times, hope can prevail!",
+            "You have proven yourself a true hero; this Victory associates your name with courage and strength!",
+            "The Dragon's fall is a symbol of the triumph of good over evil—a Victory that will be remembered!",
+            "You have achieved Victory, having vanquished the beast that terrorized the land!",
+            "The Dragon's fire is extinguished in your Victory, and a new dawn breaks!",
+            "Your name will be spoken with reverence for generations following this Victory!",
+            "The kingdom rejoices in Victory at the news of the Dragon's defeat!",
+            "You are the champion, the hero who saved the realm with your glorious Victory!",
+            "The Dragon's hoard is now yours to command after your decisive Victory!",
+            "Your legend will live on, inspiring others to achieve their own Victory!",
+            "The world is a safer place because of your bravery and this momentous Victory!",
+            "You have proven yourself worthy of the title of hero through this Victory!",
+            "The Dragon's defeat is a Victory for all that is good and just!",
+            "You are the light that pierced the darkness, achieving a Victory that banished despair!",
+            "The Dragon's fall is a testament to the power of courage and a Victory for the human spirit!",
+            "You have faced the ultimate challenge and emerged in Victory, a true hero among heroes!",
+            "The Dragon's defeat is a Victory for the triumph of hope over fear!",
+            "You have conquered the beast that threatened the world; your Victory will be celebrated for centuries!",
+            "The Dragon's fire is no more; your Victory brought peace back to the land!",
+            "You have shown that even fearsome foes are defeated by a Victory of skill and belief!",
+            "The Dragon's defeat is a Victory for all who dream of a world free from fear!",
+            "You have earned your place among the legendary heroes; the Dragon Slayer achieves total Victory!"
+                };
+
+        public static string[] DefeatStory = new string[]
         {
-            if (!_dialogDatabase.ContainsKey(storyPointer))
-            {
-                return "The battle rages on, the air trembling from the combatants' ferocity...";
-            }
-            string[] textOptions = _dialogDatabase[storyPointer];
-            int dialogIndex = random.Next(textOptions.Length);
-            return textOptions[dialogIndex];
-        }
+            "The Dragon's attack is a final, devastating blow; you meet your Defeat here.",
+            "Your story ends in Defeat, a tale of lost courage and a reminder of the Dragon's might.",
+            "The Dragon's roar is a dirge for your soul; its Victory is total, your Defeat is absolute.",
+            "You have faced the Dragon and met your Defeat, a victim of its overwhelming power.",
+            "The Dragon's reign continues, and your name is added to the list of those who suffered Defeat.",
+            "Your sacrifice was in vain, and the kingdom mourns the tragedy of your Defeat.",
+            "The Dragon's triumph is a tragedy; your memory remains a painful reminder of the cost of Defeat.",
+            "You have fought your last battle, and the Dragon stands triumphant over your Defeat.",
+            "The Dragon's power is absolute; your Defeat is a testament to its might.",
+            "You have fallen in Defeat, and the world is plunged into darkness.",
+            "Your name will be whispered in fear, a reminder of the Dragon's power and your own Defeat.",
+            "The Dragon's dominance is complete; your story ends in the finality of Defeat.",
+            "Your light has been extinguished in Defeat, and the darkness has prevailed.",
+            "The Dragon's flames have consumed you, leaving only the ashes of your Defeat.",
+            "Your valiant effort was not enough, and the Dragon's power has secured your Defeat.",
+            "The world has lost a hero; the Dragon's victory brings a crushing Defeat to hope.",
+            "Your name will be remembered, but marked by the sorrow of your Defeat.",
+            "The Dragon's legend grows with each fallen hero, and your Defeat is now part of its tale.",
+            "Your journey ends here, a testament to the Dragon's might and the bitter sting of Defeat.",
+            "The Dragon's victory is a somber reminder of the power of darkness and the cost of Defeat.",
+            "You have fought bravely, but in the end, you succumbed to Defeat.",
+            "Your spirit is broken, your body suffers Defeat, and the Dragon's triumph is complete.",
+            "The world mourns, and the shadow of the Dragon's Defeat over you looms large.",
+            "Your name is etched in history, a symbol of the Dragon's power and your own Defeat.",
+            "The Dragon's victory is a tragedy, a reminder of the cost of Defeat.",
+            "You have fallen, but your memory remains, even in the shadow of your Defeat.",
+            "The Dragon's reign continues, and your Defeat serves as a warning to others.",
+            "Your sacrifice was valiant, but ultimately it was a Defeat against the Dragon.",
+            "The world is darker without your light; your Defeat is a symbol of the triumph of evil.",
+            "You have fought with honor, but ultimately you were met with Defeat.",
+            "Your name is spoken with sorrow, a reminder of your courage and the Defeat you suffered.",
+            "The Dragon's victory is a tragedy, but your memory survives your Defeat to inspire others.",
+            "You have fallen in Defeat, but your spirit remains a beacon of hope in the shadow."
+        };
+        public static string[] ClashStory = new string[]
+   {
+        "You and the Dragon clash, neither able to gain an advantage!",
+        "Steel meets scale in a resounding clang, as both combatants stand their ground!",
+        "A fierce exchange of blows results in a stalemate, neither side yielding!",
+        "The Dragon's fury is matched by your unwavering resolve, resulting in a clash of titans!",
+        "Sparks fly as your weapons meet, neither attack able to break through the other's defenses!",
+        "You and the Dragon lock in a struggle of wills, neither giving an inch!",
+        "The ground trembles as your combined power reverberates through the cavern!",
+        "Neither you nor the Dragon can land a decisive blow, the battle hanging in the balance!",
+        "The clash of your weapons echoes through the air, a testament to the ferocity of the fight!",
+        "You and the Dragon are locked in a deadly dance, each mirroring the other's moves!",
+        "The Dragon's might is met with your equal strength, resulting in a thunderous collision!",
+        "Neither side can gain the upper hand, the battle a true test of endurance!",
+        "You and the Dragon are evenly matched, the outcome of the battle still uncertain!",
+        "The clash of your attacks creates a shockwave, pushing both combatants back!",
+        "Neither you nor the Dragon can break through the other's defenses, the battle at a standstill!",
+        "The Dragon's roar is answered by your battle cry, as the clash intensifies!",
+        "You and the Dragon are locked in a struggle for dominance, neither willing to yield!",
+        "The clash of your weapons is a symphony of destruction, as the battle reaches its climax!",
+        "Neither side can deliver the final blow, the battle hanging by a thread!",
+        "You and the Dragon are engaged in a battle of attrition, each waiting for the other to falter!",
+        "The Dragon's power is matched by your determination, the clash a testament to your resilience!",
+        "Neither combatant can gain a clear advantage, the battle a true test of skill and strength!",
+        "You and the Dragon are locked in a deadly embrace, neither able to break free!",
+        "The clash of your attacks is a whirlwind of fury, as the battle reaches its peak!",
+        "Neither side can land a telling blow, the battle a stalemate of epic proportions!",
+        "The Dragon's might is countered by your unwavering spirit, the clash a symbol of your defiance!",
+        "You and the Dragon are engaged in a battle of wills, neither prepared to back down!",
+        "The clash of your weapons is a deafening roar, as the battle reaches its crescendo!",
+        "Neither combatant can deliver the coup de grâce, the battle hanging in the balance!",
+        "You and the Dragon are locked in a struggle for survival, neither willing to surrender!",
+        "The Dragon's power is matched by your unwavering courage, the clash a testament to your bravery!",
+        "Neither side can gain a decisive edge, the battle a true test of heart and determination!",
+        "You and the Dragon are locked in a dance of death, neither able to escape!",
+        "The clash of your attacks is a symphony of chaos, as the battle reaches its most intense point!",
+        "Neither combatant can land the final blow, the battle a stalemate of legendary proportions!",
+        "The Dragon's might is countered by your unwavering resolve, the clash a symbol of your indomitable spirit!",
+        "You and the Dragon are locked in a struggle for victory, neither willing to concede defeat!",
+        "The clash of your weapons is a thunderous explosion, as the battle reaches its most critical juncture!",
+        "Neither side can deliver the killing stroke, the battle hanging by a thread!",
+        "You and the Dragon are engaged in a battle for supremacy, neither willing to relinquish control!",
+        "The Dragon's power is matched by your unwavering tenacity, the clash a testament to your unwavering will!",
+        "Neither combatant can gain a clear advantage, the battle a true test of grit and determination!",
+        "You and the Dragon are locked in a deadly confrontation, neither able to break the deadlock!",
+        "The clash of your attacks is a maelstrom of destruction, as the battle reaches its most crucial moment!",
+        "Neither side can land the decisive blow, the battle a stalemate of epic proportions!",
+        "The Dragon's might is countered by your unwavering valor, the clash a symbol of your unyielding spirit!",
+        "You and the Dragon are engaged in a battle for dominance, neither prepared to yield!",
+        "The clash of your weapons is a cataclysmic event, as the battle reaches its most decisive point!"
+
+   };
 
 
     }

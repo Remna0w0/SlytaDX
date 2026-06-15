@@ -1,24 +1,20 @@
-﻿using Dapper;
-using Discord;
+﻿using Discord;
 using Discord.WebSocket;
 using RemnaBotService.DiscordBot;
+using Dapper;
+using Microsoft.Data.Sqlite;
 
 namespace RemnaBotService
 {
     class DiscordClientContainter : DiscordLogger
     {
-
+        
         private DiscordSocketClient _client;
         private DatabaseService _databaseService = new DatabaseService();
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        static string congifDir = Path.Combine(baseDir, "Config");
-        static string tokenPath = Path.Combine(congifDir, "SlytaBot Token.txt");
+        static string tokenPath = Path.Combine(baseDir, "SlytaBot Token.txt");
         public string DisToken = File.ReadAllText(tokenPath);
         private Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
-        private DateTime _lastRefreshAttempt = DateTime.MinValue;
-        private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
-        private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
-        private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
 
         public async Task Intialize()
         {
@@ -132,145 +128,83 @@ namespace RemnaBotService
             }
         }
 
-        private bool IsOnCooldown(string cooldownKey, TimeSpan cooldownLength)
-        {
-            if (_cooldowns.TryGetValue(cooldownKey, out DateTime lastUsedTime))
-            {
-                if (DateTime.Now - lastUsedTime < cooldownLength)
-                {
-                    return true;
-                }
-            }
-            _cooldowns[cooldownKey] = DateTime.Now;
-            return false;
-        }
 
         public async Task OnMessageReceived(SocketMessage message)
         {
             Log($"{message.Author.Username}: {message.Content}");
 
-            try
+
+            if (message.Author.IsBot) return;
+
+            var channel = message.Channel;
+            string username = message.Author.Username;
+            string[] args = message.Content.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (args.Length == 0) return;
+
+            string command = args[0];
+ 
+            if (activeGames.TryGetValue(username, out var game))
             {
-                if (message.Author.IsBot) return;
-
-
-
-
-                if (message.Author is SocketGuildUser user)
+                if (message.Content.StartsWith("%"))
                 {
-                    string userID = message.Author.Id.ToString();
-                    bool isMod = user.GuildPermissions.Administrator || user.GuildPermissions.ManageMessages;
-
-                    using var db = _databaseService.GetConnection();
-
-                    string updateSql = "UPDATE ServerMembers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
-
-                    int rowsAffected = db.Execute(updateSql, new
+                    if (game._messenger is DiscordMessenger dm)
                     {
-                        isMod = isMod ? 1 : 0,
-                        id = userID
-                    });
-                    if (rowsAffected == 0)
-                    {
-                        string insertSql = @"INSERT INTO ServerMembers (UserID, Username, IsModerator, Message_Count)
-                                         VALUES (@id, @name, @isMod, 1)";
-
-                        db.Execute(insertSql, new
-                        {
-                            id = userID,
-                            name = user.Username,
-                            isMod = isMod ? 1 : 0
-                        });
-                        Log($"Registered missed user: {user.Username}");
+                        dm.ReceiveMessage(message.Content);
+                        return;
                     }
                 }
 
-                var channel = message.Channel;
-                string username = message.Author.Username;
-                string[] args = message.Content.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-                if (args.Length == 0) return;
-
-                string command = args[0];
-
-                if (activeGames.TryGetValue(username, out var game))
-                {
-                    if (message.Content.StartsWith("%"))
-                    {
-                        if (game._messenger is DiscordMessenger dm)
-                        {
-                            dm.ReceiveMessage(message.Content);
-                            return;
-                        }
-                    }
-
-
-                }
-
-
-                switch (command)
-                {
-                    case "%roles":
-                        if (message.Author is SocketGuildUser guildUser)
-                        {
-                            if (!guildUser.GuildPermissions.Administrator)
-                            {
-                                Log("Non-admin attempted to spawn role buttons. Command ignored.");
-                                return;
-                            }
-                        }
-
-                        var builder = new ComponentBuilder()
-                            .WithButton("He/Him", "role_he", ButtonStyle.Primary, emote: new Emoji("\U0001F499"), row: 0)
-                            .WithButton("She/Her", "role_she", ButtonStyle.Primary, emote: new Emoji("\U0001Fa77"), row: 0)
-                            .WithButton("They/Them", "role_they", ButtonStyle.Primary, emote: new Emoji("\U0001F49C"), row: 0)
-                            .WithButton("Ask", "role_ask", ButtonStyle.Primary, emote: new Emoji("\U0001F49A"), row: 0)
-
-                            .WithButton("Viewers!", "role_viewer", ButtonStyle.Secondary, emote: new Emoji("\U0001F440"), row: 1)
-                            .WithButton("Streamers!", "role_streamer", ButtonStyle.Secondary, emote: new Emoji("\U0001F3A5"), row: 1)
-                            .WithButton("Artists!", "role_artist", ButtonStyle.Secondary, emote: new Emoji("\U0001F58C"), row: 1)
-                            .WithButton("Fighters!", "role_fighter", ButtonStyle.Secondary, emote: new Emoji("\U0001F94A"), row: 1);
-
-                        await channel.SendMessageAsync("Welcome! Click the buttons to add or remove roles:", components: builder.Build());
-                        break;
-
-                    case "%ping":
-                        if (IsOnCooldown("ping", _standardCooldown))
-                        {
-                            Log("ping is on cooldown.");
-                            break;
-                        }
-                        await Say(channel, "Pong!");
-                        LogCommand(message.Author.Id.ToString(), "ping");
-                        break;
-
-                    case "%dragon":
-                        if (IsOnCooldown("dragon", TimeSpan.FromSeconds(10)))
-                        {
-                            Log("dragon is on cooldown.");
-                            break;
-                        }
-                        if (!activeGames.ContainsKey(username))
-                        {
-                            var messenger = new DiscordMessenger(this, channel, username);
-                            var newGame = new EternalDragon(messenger);
-                            activeGames.Add(username, newGame);
-
-                            _ = Task.Run(async () =>
-                            {
-                                try { await newGame.Dragon(username); }
-                                finally { activeGames.Remove(username); }
-                            });
-
-                            await Say(channel, "Dragon game started!");
-                        }
-                        LogCommand(message.Author.Id.ToString(), "dragon");
-                        break;
-                }
             }
-            catch (Exception ex)
+            
+
+            switch (command)
             {
-                Log($"MessageRecieved error: {ex.Message}");
+                case "%roles":
+                    if (message.Author is SocketGuildUser guildUser)
+                    {
+                        if (!guildUser.GuildPermissions.Administrator)
+                        {
+                            Log("Non-admin attempted to spawn role buttons. Command ignored.");
+                            return; 
+                        }
+                    }
+
+                    var builder = new ComponentBuilder()
+                        .WithButton("He/Him", "role_he", ButtonStyle.Primary, emote: new Emoji("\U0001F499"), row: 0)
+                        .WithButton("She/Her", "role_she", ButtonStyle.Primary, emote: new Emoji("\U0001Fa77"), row: 0)
+                        .WithButton("They/Them", "role_they", ButtonStyle.Primary, emote: new Emoji("\U0001F49C"), row: 0)
+                        .WithButton("Ask", "role_ask", ButtonStyle.Primary, emote: new Emoji("\U0001F49A"), row: 0)
+
+                        .WithButton("Viewers!", "role_viewer", ButtonStyle.Secondary, emote: new Emoji("\U0001F440"), row: 1)
+                        .WithButton("Streamers!", "role_streamer", ButtonStyle.Secondary, emote: new Emoji("\U0001F3A5"), row: 1)
+                        .WithButton("Artists!", "role_artist", ButtonStyle.Secondary, emote: new Emoji("\U0001F58C"), row: 1)
+                        .WithButton("Fighters!", "role_fighter", ButtonStyle.Secondary, emote: new Emoji("\U0001F94A"), row: 1);
+
+                    await channel.SendMessageAsync("Welcome! Click the buttons to add or remove roles:", components: builder.Build());
+                    break;
+
+                case "%ping":
+                    await Say(channel, "Pong!");
+                    break;
+
+                case "%dragon":
+                    if (!activeGames.ContainsKey(username))
+                    {
+                        var messenger = new DiscordMessenger(this, channel, username);
+                        var newGame = new EternalDragon(messenger);
+                        activeGames.Add(username, newGame);
+
+                        _ = Task.Run(async () =>
+                        {
+                            try { await newGame.Dragon(username); }
+                            finally { activeGames.Remove(username); }
+                        });
+
+                        await Say(channel, "Dragon game started!");
+                    }
+                    break;
             }
 
         }
@@ -288,7 +222,7 @@ namespace RemnaBotService
 
             try
             {
-                int totalSynced = 0;
+                int totalSynced = 0;    
                 string sql = @"INSERT OR IGNORE INTO ServerMembers (UserID, Username, JoinDate, IsModerator)
                                VALUES (@id, @name, @joinDate, @isMod)";
 
@@ -303,11 +237,11 @@ namespace RemnaBotService
                         name = user.Username,
                         joinDate = user.JoinedAt?.DateTime ?? DateTime.Now,
                         isMod = isMod ? 1 : 0
-                    }, transaction);
+                    },   transaction);
 
                     totalSynced++;
                 }
-
+                
                 transaction.Commit();
                 Log($"Server member sync complete! Checked and saved {totalSynced} members.");
             }
@@ -330,7 +264,6 @@ namespace RemnaBotService
                 name = user.Username,
                 joinDate = DateTime.Now
             });
-            Log($"Registered new user: {user.Username}");
         }
 
         private async Task OnGuildMemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
@@ -360,25 +293,6 @@ namespace RemnaBotService
                 await db.ExecuteAsync(sqlMod, new { isMod = afterMod ? 1 : 0, id = after.Id.ToString() });
                 Log($"User {after.Username} moderation status updated to: {afterMod}");
             }
-        }
-
-        public DiscordSocketClient GetInteractionClient() => _client;
-        public void LogCommand(string userId, string commandName)
-        {
-            try
-            {
-                using var db = _databaseService.GetConnection();
-
-                string sql = @"INSERT INTO CommandLog (UserID, CommandName, Timestamp) 
-                   VALUES (@userId, @commandName, CURRENT_TIMESTAMP)";
-
-                db.Execute(sql, new { userId, commandName });
-            }
-            catch (Exception ex)
-            {
-                Log($"[DATABASE ERROR] Could not log command {commandName}: {ex.Message}");
-            }
-
         }
     }
 }
