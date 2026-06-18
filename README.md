@@ -54,7 +54,7 @@ SlyaDX keeps a database of server members and stream followers. The plan is to u
 
 ## Technical Architecture
 
-SlytaBot uses a modular approach with specific containers for each platform:
+SlytaDX uses a modular approach with specific containers for each platform:
 
 * **`TwitchClientContainer`**: Manages Twitch chat connectivity, API interactions, and live status checks.
 * **`DiscordClientContainer`**: Manages Discord gateway events, button interactions, and message routing.
