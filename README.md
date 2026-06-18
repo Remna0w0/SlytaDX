@@ -49,7 +49,7 @@ To run the bot, ensure the following text files are present in the root director
 
 ### Database
 
-SlyaDX keeps a database of server members and stream followers. The plan is to use data from this database to create more community building interaction opportunities. It also keeps track of what commands are being used the most.
+SlytaDX keeps a database of server members and stream followers. The plan is to use data from this database to create more community building interaction opportunities. It also keeps track of what commands are being used the most.
 
 
 ## Technical Architecture
