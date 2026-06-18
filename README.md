@@ -1,6 +1,9 @@
-# SlytaBot
+# SlytaDX
 
-SlytaBot is a custom, cross-platform bridge bot designed to sync Twitch and Discord activities. It handles real-time stream notifications, arena management, and server role assignments.
+> **DISCLAIMER:** SlytaDX is a personal project for both advancing my knowledge of C# and assisting with my content communities. **I have no attention of ever creating a release for this project.** You are free to do what you will with the code, but your use is your own. I will not be assisting anyone with getting SlytaDX working for them. It is built with my own personal circumstances in mind. This repo serves only to document my progress and allow parity between my PCs, as well as showcase my work to those who are interested. Thank you!
+
+
+SlytaDX is a custom, cross-platform bridge bot designed to sync Twitch and Discord activities. It handles real-time stream notifications, arena management, and server role assignments.
 
 ## Features
 
@@ -8,6 +11,7 @@ SlytaBot is a custom, cross-platform bridge bot designed to sync Twitch and Disc
 * **Arena Management:** Allows moderators to update and share arena IDs across both platforms seamlessly.
 * **Discord Role Assignment:** Uses interactive buttons for users to self-assign pronouns and community roles (e.g., Viewer, Streamer, Artist, Fighter).
 * **Automatic Token Management:** Handles Twitch API token refreshing automatically to keep the bot connected without manual intervention.
+* **Games!** Contains a SlytaDX original turnbased game about slaying a dragon! (For Discord only)
 
 ## Setup Requirements
 
@@ -21,7 +25,8 @@ To run the bot, ensure the following text files are present in the root director
 * `tourney link.txt`
 * `arena ID.txt`
 
-> **⚠️ SECURITY WARNING:** These files contain sensitive authentication tokens. **NEVER** commit these files to GitHub. Ensure they are included in your `.gitignore` file before pushing your code.
+
+> **⚠️ SECURITY WARNING:** Some of these files (tokens, secrets) contain sensitive authentication information. **NEVER** commit these files to GitHub. Ensure they are included in your `.gitignore` file before pushing your code.
 
 ## Commands
 
@@ -30,9 +35,10 @@ To run the bot, ensure the following text files are present in the root director
 | :--- | :--- |
 | `!id` / `!arena` | Displays the current Arena ID. |
 | `!discord` | Provides the Discord invite link. |
-| `!openarena` | (Mod only) Sends an alert to Discord with the current Arena ID. |
+| `!openarena` | (Streamer only) Sends an alert to Discord with the current Arena ID. |
 | `!setid [ID]` | (Mod only) Updates the stored Arena ID. |
 | `!tourney` | Displays the current tournament link. |
+| `!followage` | Displays the amount of time a viewer has followed the stream. |
 
 ### Discord
 | Command | Description |
@@ -40,6 +46,11 @@ To run the bot, ensure the following text files are present in the root director
 | `%roles` | (Admin only) Spawns the role assignment button panel. |
 | `%dragon` | Starts an interactive "Eternal Dragon" game session. |
 | `%ping` | Returns "Pong!" |
+
+### Database
+
+SlyaDX keeps a database of server members and stream followers. The plan is to use data from this database to create more community building interaction opportunities. It also keeps track of what commands are being used the most.
+
 
 ## Technical Architecture
 
