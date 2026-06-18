@@ -20,6 +20,7 @@ internal class Program
             Environment.Exit(0);
         };
 
+        // Logging is called before initialization so the initialization itself can be logged 
         TwitchClient.SetupLogging();
         DiscordClient.SetupLogging();
 
@@ -27,7 +28,7 @@ internal class Program
         await DiscordClient.Intialize();
 
 
-
+        // This is where the events for twitch/discord cross communication are put into effect
         TwitchClient.OnStreamGoLive += async (sender, message) =>
         {
             ulong targetChannelId = 1293234433478099046;

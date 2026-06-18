@@ -2,6 +2,11 @@
 {
     public static class WeaponLibrary
     {
+        /// <summary>
+        /// All weapons and their properties
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
         public static Weapon GetWeapon(string name)
         {
             return name switch

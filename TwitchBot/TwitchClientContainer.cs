@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using System.Runtime.CompilerServices;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
@@ -12,6 +13,10 @@ namespace RemnaBotService;
 
 public class TwitchClientContainer : TwitchLogger
 {
+    /// <summary>
+    /// Contains all tasks, commands, and means of intialization for the Twitch Bot
+    /// </summary>
+    
     static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
     public TwitchClient Client = new TwitchClient();
     public ConnectionCredentials Credentials;
@@ -35,7 +40,9 @@ public class TwitchClientContainer : TwitchLogger
     public string tourneyLink = File.ReadAllText(tourneyPath);
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
+    // currentlyRefrshing stops the program from constantly trying to refresh itself, preventing crashes
     private bool currentlyRefreshing = false;
+    // To ensure nothing tries to write to a file at the same time as something else
     private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
     private DateTime _lastRefreshAttempt = DateTime.MinValue;
     private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
@@ -99,6 +106,7 @@ public class TwitchClientContainer : TwitchLogger
         initializationCompletionSource.SetResult(); // Signal initialization complete
     }
 
+    // Prints a list of all current allowed scopes so you can be sure your tokens are correct
     public async Task ValidateTokenScopes()
     {
         try
@@ -127,6 +135,7 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    // When the stream goes live, we want the discord side to send an announcement ASAP
     private async Task CheckIfLive()
     {
         if (!Client.IsConnected)
@@ -152,6 +161,7 @@ public class TwitchClientContainer : TwitchLogger
                 Log("Streamer is OFFLINE! Rechecking in 60 seconds...");
             }
         }
+        // This method also serves as a status check for the bot, updating its tokens when expired 
         catch (Exception ex) when (ex.Message.Contains("Invalid OAuth") || ex.Message.Contains("bad credentials"))
         {
             Log("Tokens expired! Refreshing tokens...");
@@ -169,6 +179,7 @@ public class TwitchClientContainer : TwitchLogger
 
     }
 
+    // We need the streamer ID for things like the followage command
     private async Task GetStreamerID()
     {
         var userResponse = await API.Helix.Users.GetUsersAsync(logins: new System.Collections.Generic.List<string> { streamName });
@@ -185,6 +196,7 @@ public class TwitchClientContainer : TwitchLogger
 
     public async Task RefreshMyToken()
     {
+        // prevents panic refrshing
         if (DateTime.Now - _lastRefreshAttempt < _cooldown)
         {
             Log("Refresh cooldown active. Skipping request.");
@@ -199,6 +211,7 @@ public class TwitchClientContainer : TwitchLogger
 
             _lastRefreshAttempt = DateTime.Now;
 
+            // Only proceed if the tokens are genuine 
             if (refreshResult != null && !string.IsNullOrEmpty(refreshResult.AccessToken) && !string.IsNullOrEmpty(refreshResult.RefreshToken))
             {
                 API.Settings.AccessToken = refreshResult.AccessToken;
@@ -213,6 +226,7 @@ public class TwitchClientContainer : TwitchLogger
 
                     await Task.Delay(500);
 
+                    // Update old creds before writing to the file
                     Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
                     await Client.ConnectAsync();
                     currentlyRefreshing = false;
@@ -244,6 +258,7 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    // Quick check for preventing command spam 
     private bool IsOnCooldown(string cooldownKey, TimeSpan cooldownLength)
     {
         if (_cooldowns.TryGetValue(cooldownKey, out DateTime lastUsedTime))
@@ -258,7 +273,7 @@ public class TwitchClientContainer : TwitchLogger
     }
 
 
-
+    // Twitch's default command prefix is "!"
     private async Task ChatCommand(object? sender, OnChatCommandReceivedArgs e)
     {
         string username = e.ChatMessage.Username;
@@ -278,6 +293,8 @@ public class TwitchClientContainer : TwitchLogger
                     LogCommand(e.ChatMessage.UserId, "beep");
                     break;
 
+                    // multiple names for the same command to accomodate... ignorant users
+
                 case "join":
                 case "id":
                 case "arena":
@@ -295,6 +312,7 @@ public class TwitchClientContainer : TwitchLogger
                         }
                         else
                         {
+                            // Tell the admin the actual issue, hide it from user to reduce confusion 
                             Log("ATTENTION: Arena ID file missing. Check root. Returning default response.");
                             Say("No arena open!");
                         }
@@ -344,8 +362,11 @@ public class TwitchClientContainer : TwitchLogger
                     Say("I see you big dog!");
                     LogCommand(e.ChatMessage.UserId, "lurk");
                     break;
+                
 
                 case "setid":
+                    // The arena ID can only be set by mods or the streamer
+                    // THIS IS IMPORTANT. Allowing this to be called by viewers is eseentially allowing anyone to write to a file on the machine running the program. Be cautious. 
                     if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
                     {
                         if (e.Command.ArgumentsAsList.Count > 0)
@@ -377,7 +398,9 @@ public class TwitchClientContainer : TwitchLogger
                     break;
 
                 case "openarena":
-                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
+                    // This invokes the event which Discord uses to send an announcment
+                    // IT IS IMPORTANT TO KEEP THIS COMMAND TO THE STREAMER ONLY. 
+                    if (e.ChatMessage.IsBroadcaster)
                     {
                         if (IsOnCooldown("openarena", _standardCooldown))
                         {
@@ -390,6 +413,7 @@ public class TwitchClientContainer : TwitchLogger
                     LogCommand(e.ChatMessage.UserId, "openarena");
                     break;
 
+                    // Gets the time a given user has been following the channel
                 case "followage":
                     if (string.IsNullOrEmpty(streamerID))
                     {
@@ -435,7 +459,7 @@ public class TwitchClientContainer : TwitchLogger
                             break;
                         }
 
-
+                        // Compare the time they followed to the time the command was called, 
                         DateTime followedAt = DateTime.Parse(followsResponse.Data[0].FollowedAt);
                         TimeSpan followDuration = DateTime.UtcNow - followedAt;
 
@@ -460,6 +484,7 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    // Updates the follower database
     public async Task SyncFollowers()
     {
         Log("Starting full follower sync, please wait...");
@@ -476,7 +501,7 @@ public class TwitchClientContainer : TwitchLogger
 
             do
             {
-
+                // Twitch provides the list followers by pages of 100, so we have to flip through them
                 var followList = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, after: followCursor, first: 100);
 
 
@@ -532,6 +557,8 @@ public class TwitchClientContainer : TwitchLogger
         string checkSql = "SELECT COUNT(1) FROM Viewers WHERE UserID = @id";
         int exists = db.ExecuteScalar<int>(checkSql, new { id = userID });
 
+        // Updates the users database entry every time they send a message, ensuring their information is consistent as long as they are chatting
+        // Also catches any new followers not caught in the database, as long as they are chatting
         if (exists == 0)
         {
             var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
@@ -569,6 +596,7 @@ public class TwitchClientContainer : TwitchLogger
         Say("Ready!");
     }
 
+    // for the followage command
     private string FormatTimeSpan(TimeSpan timeSpan)
     {
         var years = timeSpan.Days / 365;
@@ -615,6 +643,8 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
+    // this is ran once by itself whenever you first setup the bot and whenever you want to update your scopes. 
+    // requires the authorization code from you URL and the exact URI used 
     public async void GetInitialTokens(string authorizationCode, string redirectUri)
     {
         Log("Exchanging authorization code for tokens...");

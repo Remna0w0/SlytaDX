@@ -4,6 +4,9 @@ namespace RemnaBotService
 {
     public class EternalDragon
     {
+        /// <summary>
+        /// This is the foreground of the game. It uses the messengers and CombatDirector to present options to the player and retrieve the results of those options 
+        /// </summary>
         public BotMessenger _messenger { get; }
         Random random = new Random();
 
@@ -22,6 +25,9 @@ namespace RemnaBotService
                     Title = "Battle the Eternal Dragon!",
                     Description = "750HP vs 1200HP.  Use your wits and a bit of luck to outlast the Dragon!"
                 });
+                // We give discord time to send the message, otherwise messages can arrive out of order 
+                await Task.Delay(750);
+
                 _messenger.SendGameMessage(new GameMessage
                 {
                     Title = "Battle Rules",
@@ -30,7 +36,8 @@ namespace RemnaBotService
    "SPELL: Attack without BASE BUFF but with a much higher base attack. If your damage number is higher than the dragon's, regardless of which attack they chose, you gain the Channeled status. If lower, the dragons attack is empowered.\n" +
    "DODGE: Has a higher chance to neutralize damage than BLOCK, but also a higher chance to fail! A successful DODGE grants the Slip Counter status."
                 });
-
+                await Task.Delay(750);
+                // CombatDirector is null here until the weapon is chosen. Then the information can be plugged into the constructor
                 CombatDirector fight = null;
                 bool startQuit = false;
                 do
@@ -46,6 +53,7 @@ namespace RemnaBotService
 
                     if (startQuitIndex == 0)
                     {
+                        // [ ADD WEAPON DESCRIPTION MESSAGE HERE ]
                         string[] weaponOptions = { "Stalwart Blade", "Nightfall Axe", "Brilliant Caststaff", "Unseen Daggers" };
                         int weaponIndex = await _messenger.GetUserSelectionAsync(weaponOptions, username);
                         string selectedWeapon = weaponOptions[weaponIndex];
@@ -71,8 +79,8 @@ namespace RemnaBotService
 
                     string[] actionOptions = { "BRAVE", "BLOCK", "DODGE", "SPELL", "FLEE" };
                     int actionIndex = await _messenger.GetUserSelectionAsync(actionOptions, username);
-                    await Task.Delay(750);
 
+                    
                     if (actionIndex == 1 && !fight.weapon.CanBlock)
                     {
                         _messenger.SendGameMessage(new GameMessage
@@ -80,6 +88,7 @@ namespace RemnaBotService
                             Title = "Action Denied",
                             Description = $"⚠️ Your **{fight.weapon.Name}** cannot be used to Block! Choose another tactical action."
                         });
+                        await Task.Delay(750);
                         continue;
                     }
 
@@ -98,6 +107,14 @@ namespace RemnaBotService
                     bool gameOver = false;
                     string conclusionMessage = "";
 
+
+                    _messenger.SendGameMessage(new GameMessage
+                    {
+                        Title = "Combat Results",
+                        Description = turnResult
+                    });
+                    await Task.Delay(750);
+
                     if (fight._player.HP <= 0 || fight._dragon.HP <= 0)
                     {
                         fight.startGame = false;
@@ -111,13 +128,8 @@ namespace RemnaBotService
                         conclusionMessage = $"**{conclusion}**\n\nYour Final HP: {fight._player.HP} | Dragon's Final HP: {fight._dragon.HP}";
                     }
 
-                    _messenger.SendGameMessage(new GameMessage
-                    {
-                        Title = "Combat Results",
-                        Description = turnResult
-                    });
 
-                    await Task.Delay(750);
+                    
 
                     if (!gameOver)
                     {
@@ -145,6 +157,7 @@ namespace RemnaBotService
 
                 if (fight.quitGame)
                     {
+                    // This may be converted to a button prompt as well
                         _messenger.SendGameMessage(new GameMessage { Title = "Select Screen", Description = "Restart (R) or Quit?" });
                         string input = await _messenger.GetUserInputAsync(username);
 

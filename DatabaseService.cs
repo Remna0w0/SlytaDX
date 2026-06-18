@@ -16,6 +16,11 @@ namespace RemnaBotService
 
         private void InitializeDatabase()
         {
+            // A note about Message_Count
+            // Neither Twitch nor keep track of the amount of messages a user has ever sent, at least not within their APIs
+            // As such, the Message_Count Column will only interate starting from 0 from the moment this database is first created
+            // It WILL NOT iterate when the bot is offline, so it will never be truly accurate
+            // In the case of Twitch specifically, it wont even begin to count messages until the user follows the stream
             string directory = Path.GetDirectoryName(_dbPath);
             if (!Directory.Exists(directory))
             {

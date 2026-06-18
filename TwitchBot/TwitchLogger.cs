@@ -4,6 +4,9 @@ namespace RemnaBotService
 {
     public abstract class TwitchLogger : IsBot, IDisposable
     {
+
+    // Same as the discord counterpart but with its own applicable files
+
         static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
         static string fileLog = Path.Combine(baseDir, "Log/twitchbot log.txt");

@@ -2,6 +2,9 @@
 {
     public class DialogContainer
     {
+        /// <summary>
+        /// Contains all dialog options and the means of retrieveing them.
+        /// </summary>
         private static readonly Dictionary<string, string[]> _dialogDatabase = new Dictionary<string, string[]>
         {
 // --- PLAYER INTENT PREFACES ---
@@ -154,21 +157,23 @@
 // --- ENDGAME RESOLUTIONS ---
 {
     "PlayerVictory", new string[] {
-        "With a final, shattering strike, you pierce the Dragon's heart. The ancient beast lets out a final, agonizing roar before crashing heavily to the stone floor. You stand victorious, the dragon slayer of legend!",
-        "The primordial fire within the beast's throat finally flickers out. As the massive dragon collapses into the dust of its own lair, a profound silence falls over the cavern. Against all odds, you have survived and conquered!",
-        "Your weapon cleaves cleanly through the creature's final defenses. The Eternal Dragon falls, its hoard is yours, and your name will echo through history for generations to come!"
+        "With a final, shattering strike, you pierce the Dragon's heart. The ancient beast lets out a final, agonizing roar before crashing heavily to the stone floor. You stand victorious, the dragon slayer of legend! ***Victory!***",
+        "The primordial fire within the beast's throat finally flickers out. As the massive dragon collapses into the dust of its own lair, a profound silence falls over the cavern. Against all odds, you have survived and conquered! ***Victory!***",
+        "Your weapon cleaves cleanly through the creature's final defenses. The Eternal Dragon falls, its hoard is yours, and your name will echo through history for generations to come! ***Victory!***"
     }
 },
 {
     "PlayerDefeat", new string[] {
-        "The Dragon's overwhelming fury proves too much to withstand. A devastating blow shatters your guard, sending you collapsing into the darkness as the beast towers over you in triumph.",
-        "Your vision fades as the dragon's shadow completely envelops the arena. Your valiant effort ends here, leaving your story as a tragic warning to future adventurers who dare challenge the eternal beast.",
-        "With a terrifying roar, the dragon delivers a crushing final impact. Your weapon slips from your hands as you fall to the stone floor—the ancient beast remains undefeated."
+        "The Dragon's overwhelming fury proves too much to withstand. A devastating blow shatters your guard, sending you collapsing into the darkness as the beast towers over you in triumph. ***Defeat...***",
+        "Your vision fades as the dragon's shadow completely envelops the arena. Your valiant effort ends here, leaving your story as a tragic warning to future adventurers who dare challenge the eternal beast. ***Defeat...***",
+        "With a terrifying roar, the dragon delivers a crushing final impact. Your weapon slips from your hands as you fall to the stone floor—the ancient beast remains undefeated. ***Defeat...***"
     }
 }
         };
 
         private static readonly Random random = new Random();
+
+        // To pick a random dialog option. As more are added this will be more important 
         public static string GetText(string storyPointer)
         {
             if (!_dialogDatabase.ContainsKey(storyPointer))

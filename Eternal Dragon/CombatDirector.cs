@@ -6,6 +6,10 @@ namespace RemnaBotService
 {
     internal class CombatDirector
     {
+        /// <summary>
+        /// The main engine of the Eternal Dragon game. The Combat Director handles player instantiation, weapon equipping, dragon decision making, attack multipliers, turn results, and more!
+        /// All calculations end here. The only thing this class will return are strings that are relayed to the game's front end via FormulateNarrative
+        /// </summary>
 
         public bool startGame = false;
         public bool quitGame = false;
@@ -24,6 +28,8 @@ namespace RemnaBotService
             _dragon = new Combatant("Dragon", 1200, 60);
         }
 
+        // All weapons have varying base power
+        // Some have specific affects that have to be defined here
         public void EquipWeapon(string weaponName)
         {
             weapon = WeaponLibrary.GetWeapon(weaponName);
@@ -42,15 +48,22 @@ namespace RemnaBotService
                 _player.SpellBase = 80;
             }
         }
-
+            // Note that some weapon effects are not applied. This is because these effects are assesed when they are relavent, such as the Axe's worse dodge chance. 
+        
+        // This may be used for more personal dialog outputs later
         public string GetWeaponName() => weapon?.Name ?? "None";
+
+        // This may be used for a future menu diplaying Weapon stats
         public int GetBasePower() => weapon?.BasePower ?? 50;
+
+
         public TurnIntent GetBlockIntent(Combatant blocker)
         {
             int roll = _random.Next(1, 101);
 
             if (roll <= 50) // Mitigate
             {
+                // Base Buffs are calculated before the turn is executed to introduce risk of deciding to block, regardless of the opposition's action choice 
                 blocker.BaseBuff += 10;
                 return new TurnIntent { Action = "Block", DamageMultiplier = 0.5 };
             }
@@ -116,7 +129,7 @@ namespace RemnaBotService
             return new TurnIntent { Action = "Flee" };
         }
 
-
+        // Defines the intent of the dragon or the player, which is handled by ResolveTurn
         public class TurnIntent
         {
             public string Action { get; set; } // "Block", "Brave", "Spell", "Dodge"
@@ -137,7 +150,7 @@ namespace RemnaBotService
                 // CONDITIONAL PRIORITY 1: High BaseBuff Cash-out
                 if (_dragon.BaseBuff >= 25)
                 {
-                    // 70% chance to unleash that massive accumulated raw damage
+                    // 70% chance to unleash massive accumulated raw damage
                     if (customRoll <= 70) return GetBraveIntent(_dragon);
                     if (customRoll <= 85) return GetSpellIntent(_dragon);
                     return GetBlockIntent(_dragon);
@@ -181,6 +194,8 @@ namespace RemnaBotService
         public string ResolveTurn(TurnIntent playerIntent, TurnIntent dragonIntent)
         {
             _wasSunderInflictedThisTurn = false;
+
+            // To quit the game early
             if (playerIntent.Action == "Flee")
             {
 
@@ -189,6 +204,7 @@ namespace RemnaBotService
                 return DialogContainer.GetText("PlayerFlee");
             }
 
+            // Slip Countered can only be used the turn after its gained. If the combatant doesn't attack, it is wasted
             if (playerIntent.Action != "Brave" &&  playerIntent.Action != "Spell")
             {
                 if (_player.Statuses.ContainsKey("SlipCounter")) _player.Statuses.Remove("SlipCounter");
@@ -199,6 +215,7 @@ namespace RemnaBotService
                 if (_dragon.Statuses.ContainsKey("SlipCounter")) _dragon.Statuses.Remove("SlipCounter");
             }
 
+            // Slip counter is only gained if the dodge is successful 
             if (playerIntent.Action == "Dodge" && playerIntent.DamageMultiplier == 0.0)
             {
                 _player.Statuses["SlipCounter"] = weapon.SlipCounterMultiplier;
@@ -213,7 +230,7 @@ namespace RemnaBotService
             int dragonDmg = (int)(dragonIntent.FlatDamage * playerIntent.DamageMultiplier);
 
 
-
+            // Brave damage is multiplied if the target also braves but has a lower flat total (after Base Buff)
             if (playerDmg > dragonDmg && playerIntent.Action == "Brave" && dragonIntent.Action == "Brave")
             {
                 playerDmg = (int)(playerDmg * 1.2);
@@ -224,6 +241,7 @@ namespace RemnaBotService
                 dragonDmg = (int)(dragonDmg * 1.2);
             }
 
+            // Spell grants and stacks the Channeled status if target does any attack weaker than the attacker. If the attacker's attack is weaker, the target does more damage 
             if (playerIntent.Action == "Spell" && (dragonIntent.Action == "Brave" || dragonIntent.Action == "Spell"))
             {
                 if (playerDmg > dragonDmg)
@@ -243,6 +261,7 @@ namespace RemnaBotService
             _dragon.HP -= playerDmg;
             _player.HP -= dragonDmg;
 
+            // Base Buff is cashed in on a succesful Brave
             if (playerIntent.Action == "Brave" && playerDmg > 0)
             {
                     _player.BaseBuff = 0;
@@ -253,6 +272,7 @@ namespace RemnaBotService
                     _dragon.BaseBuff = 0;
             }
 
+            // Slip Countered can only be used the turn after its gained. Remove the status once the attack is finished 
             if (playerIntent.Action == "Brave" || playerIntent.Action == "Spell")
             {
                 if (_player.Statuses.ContainsKey("SlipCounter")) _player.Statuses.Remove("SlipCounter");
@@ -263,6 +283,7 @@ namespace RemnaBotService
                 if (_dragon.Statuses.ContainsKey("SlipCounter")) _dragon.Statuses.Remove("SlipCounter");
             }
 
+            // The Mighty effect increases the players Base Power if they do more damage than the dragon or the dragon blocks 
             if (weapon.HasMighty)
             {
                 if (playerDmg > dragonDmg || dragonIntent.Action == "Block")
@@ -271,6 +292,7 @@ namespace RemnaBotService
                 }
             }
 
+            // Sunder reduces the player's Bases, but can only be inflicted once 
             if (_dragon.Statuses.ContainsKey("Enraged") && _dragon.IsFirstEnragedAttack &&  dragonDmg > 0)
             {                
                     _player.BasePower = Math.Max(0, _player.BasePower - 15);
@@ -281,6 +303,8 @@ namespace RemnaBotService
                     _wasSunderInflictedThisTurn = true;
             }
 
+            // When the dragon is on critical health, it gains Enraged
+            // It multiplies the dragons attack and stacks more each turn 
             if (_dragon.HP < 401)
             {
                 if (_dragon.Statuses.ContainsKey("Enraged"))
@@ -299,8 +323,11 @@ namespace RemnaBotService
 
         public string FormulateTurnNarrative(TurnIntent player, TurnIntent dragon, int playerDmg, int dragonDmg)
         {
+            // The formulator builds a detailed story based off of the results of the turn
+
             var sb = new StringBuilder();
 
+            // Stalemate turns
             if (player.Action == "Block" && dragon.Action == "Block")
             {
                 sb.AppendLine(DialogContainer.GetText("BlockStalemate"));
@@ -315,12 +342,14 @@ namespace RemnaBotService
             }
             else
             {
+                // Dialog Container has strings for each possible intent of the player and dragon, the story starts there
                 sb.AppendLine(DialogContainer.GetText($"Player_Intent_{player.Action}"));
                 sb.AppendLine(DialogContainer.GetText($"Dragon_Intent_{dragon.Action}"));
             }
 
             sb.AppendLine("");
 
+            // We check here to see and communicate the effectiveness of the defensive options. Even in a stalemate, buffs/debuffs still apply 
             if (player.Action == "Block")
             {
                 if (player.DamageMultiplier == 0)
@@ -337,6 +366,8 @@ namespace RemnaBotService
                 else
                     sb.AppendLine("❌ **Player Dodge (Failed):** Your footing slipped! Stance compromised.");
             }
+
+            // We check here for spell results to communicate the effectiveness
             else if (player.Action == "Spell" && (dragon.Action == "Brave" || dragon.Action == "Spell"))
             {
                 sb.AppendLine(playerDmg > dragonDmg
@@ -360,6 +391,8 @@ namespace RemnaBotService
                 else
                     sb.AppendLine("❌ **Dragon Dodge (Failed):** The dragon was too slow to avoid the impact.");
             }
+
+
             else if (dragon.Action == "Spell" && (player.Action == "Brave" || player.Action == "Spell"))
             {
                 sb.AppendLine(dragonDmg > playerDmg
@@ -367,12 +400,14 @@ namespace RemnaBotService
                     : DialogContainer.GetText("Dragon_Spell_Overpowered_Empowered"));
             }
 
+            // We check here for sunder to report the base power debuff. Only report once
             if (_wasSunderInflictedThisTurn && !_hasSunderBeenReported)
             {
                 sb.AppendLine("\n💥 **CRITICAL SHATTER:** The Enraged Dragon's attack breaches your defenses, inflicting **Sunder**! Your physical Base Power is reduced by 15 and your Spell Base is suppressed by 25!");
                 _hasSunderBeenReported = true;
             }
 
+            // We report Enraged when it is inflicted, only once
             if (_dragon.HP < 401 && !_hasEnrageBeenReported)
             {
                 sb.AppendLine("\n🛑 **BEWARE:** The Eternal Dragon drops below 401 HP! Crimson runes ignite across its scales as it enters an **Enraged** state, preparing a devastating Sunder attack!");

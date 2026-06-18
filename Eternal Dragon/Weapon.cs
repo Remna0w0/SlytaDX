@@ -2,6 +2,10 @@
 {
     public class Weapon
     {
+        /// <summary>
+        /// Defines all properties a weapon can have 
+        /// </summary>
+        
         public string Name { get; set; }
         public int BasePower { get; set; }
         public bool HasMighty { get; set; }

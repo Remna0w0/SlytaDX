@@ -5,6 +5,9 @@ namespace RemnaBotService.TwitchBot
 {
     public class TwitchMessenger : BotMessenger
     {
+        /// <summary>
+        /// Since the twitch bot no longer has access to the dragon game, this class does effectively nothing for the time being
+        /// </summary>
         private readonly TwitchClientContainer _client;
         public TwitchMessenger(TwitchClientContainer client) => _client = client;
 

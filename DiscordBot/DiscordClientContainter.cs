@@ -7,6 +7,9 @@ namespace RemnaBotService
 {
     class DiscordClientContainter : DiscordLogger
     {
+        /// <summary>
+        /// Contains all tasks, commands, and means of intialization for the Discord Bot
+        /// </summary>
 
         private DiscordSocketClient _client;
         private DatabaseService _databaseService = new DatabaseService();
@@ -20,6 +23,7 @@ namespace RemnaBotService
         private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
         private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
 
+        
         public async Task Intialize()
         {
             var config = new DiscordSocketConfig
@@ -29,6 +33,8 @@ namespace RemnaBotService
             };
 
             _client = new DiscordSocketClient(config);
+
+            // Log files are local, so we deliver API generated logs here
             _client.Log += (logMessage) =>
             {
                 Log($"{logMessage.Severity}: {logMessage.Message}");
@@ -45,7 +51,7 @@ namespace RemnaBotService
             await _client.StartAsync();
 
         }
-
+        // Full resync on Ready in case there were new users while offline
         private async Task OnReady()
         {
             Log("I have connected!");
@@ -57,6 +63,7 @@ namespace RemnaBotService
             }
         }
 
+        // for message tasks that dont come from commands, so the bot knows where to send them
         public async Task<IMessageChannel> GetChannelAsync(ulong channelID)
         {
             var channel = await _client.GetChannelAsync(channelID);
@@ -77,10 +84,12 @@ namespace RemnaBotService
 
         private async Task OnButtonExecuted(SocketMessageComponent component)
         {
+            // this is currently only used by the onboarder, but could be used for other perpetual buttons
             if (component.User is SocketGuildUser user)
             {
                 ulong roleID = 0;
 
+                // returns for the role onboarder, may consolidate into a method later
                 switch (component.Data.CustomId)
                 {
                     case "role_he":
@@ -145,12 +154,14 @@ namespace RemnaBotService
             return false;
         }
 
+        
         public async Task OnMessageReceived(SocketMessage message)
         {
             Log($"{message.Author.Username}: {message.Content}");
 
             try
             {
+                // ignore all bots
                 if (message.Author.IsBot) return;
 
 
@@ -163,6 +174,7 @@ namespace RemnaBotService
 
                     using var db = _databaseService.GetConnection();
 
+                    // if users are active, this ensures database doesnt miss any user for too long, even if they are missed by the intial sync
                     string updateSql = "UPDATE ServerMembers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
 
                     int rowsAffected = db.Execute(updateSql, new
@@ -193,6 +205,7 @@ namespace RemnaBotService
 
                 string command = args[0];
 
+                // for dragon game. Sense its moving over to buttons, this may no longer be need soon
                 if (activeGames.TryGetValue(username, out var game))
                 {
                     if (message.Content.StartsWith("%"))
@@ -210,6 +223,7 @@ namespace RemnaBotService
 
                 switch (command)
                 {
+                    // this will only be ran once, or if the roles have changed and new buttons are added/edited
                     case "%roles":
                         if (message.Author is SocketGuildUser guildUser)
                         {
@@ -244,12 +258,15 @@ namespace RemnaBotService
                         LogCommand(message.Author.Id.ToString(), "ping");
                         break;
 
+                    // cooldown does not affect actual game content, only the command itself
                     case "%dragon":
                         if (IsOnCooldown("dragon", TimeSpan.FromSeconds(10)))
                         {
                             Log("dragon is on cooldown.");
                             break;
                         }
+
+                        // required so the bot does not make multiple game instances for one user 
                         if (!activeGames.ContainsKey(username))
                         {
                             var messenger = new DiscordMessenger(this, channel, username);
@@ -313,10 +330,12 @@ namespace RemnaBotService
             }
             catch (Exception ex)
             {
+                // should add a way to retry the sync 
                 transaction.Rollback();
                 Log($"Server sync error: {ex.Message}");
             }
         }
+
 
         private async Task OnUserJoined(SocketGuildUser user)
         {
@@ -332,7 +351,8 @@ namespace RemnaBotService
             });
             Log($"Registered new user: {user.Username}");
         }
-
+        
+        // ensures that the database updates as the user changes username/roles/etc, as userID remains the same
         private async Task OnGuildMemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
         {
             var beforeUser = await before.GetOrDownloadAsync();
@@ -363,6 +383,8 @@ namespace RemnaBotService
         }
 
         public DiscordSocketClient GetInteractionClient() => _client;
+
+        
         public void LogCommand(string userId, string commandName)
         {
             try
