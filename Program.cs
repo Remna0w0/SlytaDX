@@ -1,4 +1,7 @@
-﻿namespace RemnaBotService;
+﻿using RemnaBotService.DiscordBot;
+using RemnaBotService.TwitchBot;
+
+namespace RemnaBotService;
 
 internal class Program
 {
@@ -41,7 +44,7 @@ internal class Program
             }
         };
 
-        TwitchClient.ArenaOpen += async (sender, message) =>
+        TwitchClient.commander.ArenaOpen += async (sender, message) =>
         {
             ulong targetChannelId = 1514442325529596036;
 

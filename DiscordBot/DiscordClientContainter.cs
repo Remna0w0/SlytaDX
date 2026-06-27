@@ -3,9 +3,9 @@ using Discord;
 using Discord.WebSocket;
 using RemnaBotService.DiscordBot;
 
-namespace RemnaBotService
+namespace RemnaBotService.DiscordBot
 {
-    class DiscordClientContainter : DiscordLogger
+    public class DiscordClientContainter : DiscordLogger
     {
         /// <summary>
         /// Contains all tasks, commands, and means of intialization for the Discord Bot
@@ -17,11 +17,8 @@ namespace RemnaBotService
         static string congifDir = Path.Combine(baseDir, "Config");
         static string tokenPath = Path.Combine(congifDir, "SlytaBot Token.txt");
         public string DisToken = File.ReadAllText(tokenPath);
-        private Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
-        private DateTime _lastRefreshAttempt = DateTime.MinValue;
-        private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
-        private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
-        private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
+        public Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
+        DiscordCommandHandler commander = new DiscordCommandHandler();
 
         
         public async Task Intialize()
@@ -141,18 +138,6 @@ namespace RemnaBotService
             }
         }
 
-        private bool IsOnCooldown(string cooldownKey, TimeSpan cooldownLength)
-        {
-            if (_cooldowns.TryGetValue(cooldownKey, out DateTime lastUsedTime))
-            {
-                if (DateTime.Now - lastUsedTime < cooldownLength)
-                {
-                    return true;
-                }
-            }
-            _cooldowns[cooldownKey] = DateTime.Now;
-            return false;
-        }
 
         
         public async Task OnMessageReceived(SocketMessage message)
@@ -225,63 +210,16 @@ namespace RemnaBotService
                 {
                     // this will only be ran once, or if the roles have changed and new buttons are added/edited
                     case "%roles":
-                        if (message.Author is SocketGuildUser guildUser)
-                        {
-                            if (!guildUser.GuildPermissions.Administrator)
-                            {
-                                Log("Non-admin attempted to spawn role buttons. Command ignored.");
-                                return;
-                            }
-                        }
-
-                        var builder = new ComponentBuilder()
-                            .WithButton("He/Him", "role_he", ButtonStyle.Primary, emote: new Emoji("\U0001F499"), row: 0)
-                            .WithButton("She/Her", "role_she", ButtonStyle.Primary, emote: new Emoji("\U0001Fa77"), row: 0)
-                            .WithButton("They/Them", "role_they", ButtonStyle.Primary, emote: new Emoji("\U0001F49C"), row: 0)
-                            .WithButton("Ask", "role_ask", ButtonStyle.Primary, emote: new Emoji("\U0001F49A"), row: 0)
-
-                            .WithButton("Viewers!", "role_viewer", ButtonStyle.Secondary, emote: new Emoji("\U0001F440"), row: 1)
-                            .WithButton("Streamers!", "role_streamer", ButtonStyle.Secondary, emote: new Emoji("\U0001F3A5"), row: 1)
-                            .WithButton("Artists!", "role_artist", ButtonStyle.Secondary, emote: new Emoji("\U0001F58C"), row: 1)
-                            .WithButton("Fighters!", "role_fighter", ButtonStyle.Secondary, emote: new Emoji("\U0001F94A"), row: 1);
-
-                        await channel.SendMessageAsync("Welcome! Click the buttons to add or remove roles:", components: builder.Build());
+                        commander.RoleSpawnCommand(this, message);
                         break;
 
                     case "%ping":
-                        if (IsOnCooldown("ping", _standardCooldown))
-                        {
-                            Log("ping is on cooldown.");
-                            break;
-                        }
-                        await Say(channel, "Pong!");
-                        LogCommand(message.Author.Id.ToString(), "ping");
+                        commander.PingCommand(this, message);
                         break;
 
                     // cooldown does not affect actual game content, only the command itself
                     case "%dragon":
-                        if (IsOnCooldown("dragon", TimeSpan.FromSeconds(10)))
-                        {
-                            Log("dragon is on cooldown.");
-                            break;
-                        }
-
-                        // required so the bot does not make multiple game instances for one user 
-                        if (!activeGames.ContainsKey(username))
-                        {
-                            var messenger = new DiscordMessenger(this, channel, username);
-                            var newGame = new EternalDragon(messenger);
-                            activeGames.Add(username, newGame);
-
-                            _ = Task.Run(async () =>
-                            {
-                                try { await newGame.Dragon(username); }
-                                finally { activeGames.Remove(username); }
-                            });
-
-                            await Say(channel, "Dragon game started!");
-                        }
-                        LogCommand(message.Author.Id.ToString(), "dragon");
+                        commander.DragonCommand(this, message, username);
                         break;
                 }
             }

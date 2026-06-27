@@ -6,7 +6,7 @@ using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 
-namespace RemnaBotService;
+namespace RemnaBotService.TwitchBot;
 
 
 
@@ -45,11 +45,9 @@ public class TwitchClientContainer : TwitchLogger
     // To ensure nothing tries to write to a file at the same time as something else
     private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
     private DateTime _lastRefreshAttempt = DateTime.MinValue;
-    private readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
-    private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
-    private Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
+    public readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
     public event EventHandler<string> OnStreamGoLive;
-    public event EventHandler<string> ArenaOpen;
+    public TwitchCommandHandler commander = new TwitchCommandHandler();
 
 
 
@@ -180,7 +178,7 @@ public class TwitchClientContainer : TwitchLogger
     }
 
     // We need the streamer ID for things like the followage command
-    private async Task GetStreamerID()
+    public async Task GetStreamerID()
     {
         var userResponse = await API.Helix.Users.GetUsersAsync(logins: new System.Collections.Generic.List<string> { streamName });
 
@@ -258,21 +256,6 @@ public class TwitchClientContainer : TwitchLogger
         }
     }
 
-    // Quick check for preventing command spam 
-    private bool IsOnCooldown(string cooldownKey, TimeSpan cooldownLength)
-    {
-        if (_cooldowns.TryGetValue(cooldownKey, out DateTime lastUsedTime))
-        {
-            if (DateTime.Now - lastUsedTime < cooldownLength)
-            {
-                return true;
-            }
-        }
-        _cooldowns[cooldownKey] = DateTime.Now;
-        return false;
-    }
-
-
     // Twitch's default command prefix is "!"
     private async Task ChatCommand(object? sender, OnChatCommandReceivedArgs e)
     {
@@ -284,13 +267,7 @@ public class TwitchClientContainer : TwitchLogger
             switch (command)
             {
                 case "beep":
-                    if (IsOnCooldown("beep", _standardCooldown))
-                    {
-                        Log("beep is on cooldown.");
-                        break;
-                    }
-                    Say("Boop!");
-                    LogCommand(e.ChatMessage.UserId, "beep");
+                    commander.BeepCommand(this, e);
                     break;
 
                     // multiple names for the same command to accomodate... ignorant users
@@ -298,179 +275,35 @@ public class TwitchClientContainer : TwitchLogger
                 case "join":
                 case "id":
                 case "arena":
-                    if (IsOnCooldown("arena", TimeSpan.FromSeconds(10)))
-                    {
-                        Log("arena is on cooldown.");
-                        break;
-                    }
-                    await _fileLock.WaitAsync();
-                    try
-                    {
-                        if (File.Exists(arenaIDPath))
-                        {
-                            Say(File.ReadAllText(arenaIDPath));
-                        }
-                        else
-                        {
-                            // Tell the admin the actual issue, hide it from user to reduce confusion 
-                            Log("ATTENTION: Arena ID file missing. Check root. Returning default response.");
-                            Say("No arena open!");
-                        }
-                    }
-                    finally { _fileLock.Release(); }
-                    LogCommand(e.ChatMessage.UserId, "arena");
+                    commander.ArenaCommand(this, e, arenaIDPath);
                     break;
 
                 case "server":
                 case "discord":
-                    Say("You can join the discord at https://discord.gg/vtZtMAVVMh");
-                    LogCommand(e.ChatMessage.UserId, "discord");
+                    commander.DiscordCommand(this, e);
                     break;
 
                 case "bracket":
                 case "tourney":
-                    if (IsOnCooldown("tourney", _standardCooldown))
-                    {
-                        Log("tourney is on cooldown.");
-                        break;
-                    }
-
-                    await _fileLock.WaitAsync();
-                    try
-                    {
-                        if (File.Exists(tourneyPath))
-                        {
-                            Say(tourneyLink);
-                        }
-                        else
-                        {
-                            Log("ATTENTION: Tourney Link file missing. Check root. Returning default response");
-                            Say("No tournies open!");
-                        }
-                    }
-                    finally { _fileLock.Release(); }
-                    LogCommand(e.ChatMessage.UserId, "tourney");
+                    commander.TourneyCommand(this, e, tourneyPath, tourneyLink);
                     break;
 
                 case "lurk":
-                    if (IsOnCooldown("lurk", TimeSpan.FromSeconds(5)))
-                    {
-                        Log("lurk is on cooldown.");
-                        break;
-                    }
-
-                    Say("I see you big dog!");
-                    LogCommand(e.ChatMessage.UserId, "lurk");
+                    commander.LurkCommand(this, e);
                     break;
                 
 
                 case "setid":
-                    // The arena ID can only be set by mods or the streamer
-                    // THIS IS IMPORTANT. Allowing this to be called by viewers is eseentially allowing anyone to write to a file on the machine running the program. Be cautious. 
-                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
-                    {
-                        if (e.Command.ArgumentsAsList.Count > 0)
-                        {
-                            await _fileLock.WaitAsync();
-                            try
-                            {
-                                if (File.Exists(arenaIDPath))
-                                {
-                                    string newID = e.Command.ArgumentsAsList[0];
-                                    File.WriteAllText(arenaIDPath, newID);
-                                    arenaID = newID;
-                                    Say($"ID updated to: {newID}");
-                                }
-                                else
-                                {
-                                    Log("ATTENTION: Arena ID file missing. Check root. Warning command user.");
-                                    Say("Error! Contact host!");
-                                }
-                            }
-                            finally { _fileLock.Release(); }
-                        }
-                        else
-                        {
-                            Say($"{e.ChatMessage.Username}, please provide an ID!");
-                        }
-                    }
-                    LogCommand(e.ChatMessage.UserId, "setid");
+                    commander.SetIDCommand(this, e, arenaIDPath);
                     break;
 
                 case "openarena":
-                    // This invokes the event which Discord uses to send an announcment
-                    // IT IS IMPORTANT TO KEEP THIS COMMAND TO THE STREAMER ONLY. 
-                    if (e.ChatMessage.IsBroadcaster)
-                    {
-                        if (IsOnCooldown("openarena", _standardCooldown))
-                        {
-                            Log("openarena is on global cooldown.");
-                            break;
-                        }
-                        Say("Sending arena info to the discord server!");
-                        ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {arenaID}");
-                    }
-                    LogCommand(e.ChatMessage.UserId, "openarena");
+                    commander.OpenArenaCommand(this, e, arenaIDPath);
                     break;
 
                     // Gets the time a given user has been following the channel
                 case "followage":
-                    if (string.IsNullOrEmpty(streamerID))
-                    {
-                        Log("Error: streamerID is null! Retrying fetch...");
-                        await GetStreamerID();
-                        if (string.IsNullOrEmpty(streamerID))
-                        {
-                            Say("Sorry, I don't know who the streamer is yet. Try again in a moment.");
-                            break;
-                        }
-                    }
-
-                    if (IsOnCooldown("followage", _standardCooldown))
-                    {
-                        Log("followage is on cooldown.");
-                        break;
-                    }
-
-                    string viewerID = e.ChatMessage.UserId;
-
-
-                    API.Settings.ClientId = ClientID;
-                    API.Settings.AccessToken = File.ReadAllText(accessPath);
-
-                    Log($"DEBUG: Attempting followage check | ViewerID: '{viewerID}' | StreamerID: '{streamerID}'");
-
-                    if (viewerID == streamerID)
-                    {
-                        Say("You can't follow yourself!");
-                        break;
-                    }
-
-                    try
-                    {
-                        var followsResponse = await API.Helix.Channels.GetChannelFollowersAsync(
-                            broadcasterId: streamerID,
-                            userId: viewerID
-                        );
-
-                        if (followsResponse.Data == null || followsResponse.Data.Length == 0)
-                        {
-                            Say($"{username} doesn't follow this channel!");
-                            break;
-                        }
-
-                        // Compare the time they followed to the time the command was called, 
-                        DateTime followedAt = DateTime.Parse(followsResponse.Data[0].FollowedAt);
-                        TimeSpan followDuration = DateTime.UtcNow - followedAt;
-
-                        Say($"{username}, you have been following for {FormatTimeSpan(followDuration)}!");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Followage API Error: {ex.Message}");
-                        Say("I don't have permission to see followers! Make sure I'm a mod and have the right scopes.");
-                    }
-                    LogCommand(e.ChatMessage.UserId, "followage");
+                    commander.FollowageCommand(this, e, streamerID, accessPath, username);
                     break;
 
             }
@@ -594,30 +427,6 @@ public class TwitchClientContainer : TwitchLogger
     {
         Log($"Joined Channel: {e.Channel}");
         Say("Ready!");
-    }
-
-    // for the followage command
-    private string FormatTimeSpan(TimeSpan timeSpan)
-    {
-        var years = timeSpan.Days / 365;
-        var months = (timeSpan.Days % 365) / 30;
-        var days = (timeSpan.Days % 365) % 30;
-        var hours = timeSpan.Hours;
-        var minutes = timeSpan.Minutes;
-
-        var parts = new List<string>();
-        if (years > 0) parts.Add($"{years} year{(years > 1 ? "s" : "")}");
-        if (months > 0) parts.Add($"{months} month{(months > 1 ? "s" : "")}");
-        if (days > 0) parts.Add($"{days} day{(days > 1 ? "s" : "")}");
-        if (hours > 0) parts.Add($"{hours} hour{(hours > 1 ? "s" : "")}");
-        if (minutes > 0) parts.Add($"{minutes} minute{(minutes > 1 ? "s" : "")}");
-
-        if (parts.Count == 0)
-        {
-            return "just now";
-        }
-
-        return string.Join(", ", parts);
     }
 
     private async Task OnConnected(object? sender, TwitchLib.Client.Events.OnConnectedEventArgs e)
