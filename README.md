@@ -1,8 +1,5 @@
 # SlytaDX
 
-> **DISCLAIMER:** SlytaDX is a personal project for both advancing my knowledge of C# and assisting with my content communities. **I have no attention of ever creating a release for this project.** You are free to do what you will with the code, but your use is your own. I will not be assisting anyone with getting SlytaDX working for them. It is built with my own personal circumstances in mind. This repo serves only to document my progress and allow parity between my PCs, as well as showcase my work to those who are interested. Thank you!
-
-
 SlytaDX is a custom, cross-platform bridge bot designed to sync Twitch and Discord activities. It handles real-time stream notifications, arena management, and server role assignments.
 
 ## Features
@@ -59,3 +56,9 @@ SlytaDX uses a modular approach with specific containers for each platform:
 * **`TwitchClientContainer`**: Manages Twitch chat connectivity, API interactions, and live status checks.
 * **`DiscordClientContainer`**: Manages Discord gateway events, button interactions, and message routing.
 * **`Program.cs`**: Orchestrates the startup process and bridges events (like `ArenaOpen`) between the two platforms.
+
+
+
+
+
+> **DISCLAIMER:** SlytaDX is a personal project for both advancing my knowledge of C# and assisting with my content communities. **I have no attention of creating a release for this project.** You are free to do what you will with the code. Although SlytaBot is built to be usable on any given machine, it is also built with my requirements in mind. This repo serves mainly to document my progress and allow parity between my machines, as well as showcase my work to those who are interested. Thank you!
