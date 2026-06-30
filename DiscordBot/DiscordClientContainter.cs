@@ -2,10 +2,11 @@
 using Discord;
 using Discord.WebSocket;
 using RemnaBotService.DiscordBot;
+using static RemnaBotService.DiscordBot.DiscordCommandHandler;
 
 namespace RemnaBotService.DiscordBot
 {
-    public class DiscordClientContainter : DiscordLogger
+    public class DiscordClientContainter : DiscordLogger, IDiscordClientWrapper
     {
         /// <summary>
         /// Contains all tasks, commands, and means of intialization for the Discord Bot
@@ -20,6 +21,7 @@ namespace RemnaBotService.DiscordBot
         public Dictionary<string, EternalDragon> activeGames = new Dictionary<string, EternalDragon>();
         DiscordCommandHandler commander = new DiscordCommandHandler();
 
+        public bool IsGameActive(string username) => activeGames.ContainsKey(username);
         
         public async Task Intialize()
         {
@@ -70,7 +72,6 @@ namespace RemnaBotService.DiscordBot
         public async Task Say(IMessageChannel channel, string text)
         {
             await channel.SendMessageAsync(text);
-            Log($"I said: {text}");
         }
         public async Task SayEmbed(IMessageChannel channel, Discord.Embed build)
         {
@@ -205,21 +206,23 @@ namespace RemnaBotService.DiscordBot
 
                 }
 
+                if (message is not SocketUserMessage userMessage) return;
+
 
                 switch (command)
                 {
                     // this will only be ran once, or if the roles have changed and new buttons are added/edited
                     case "%roles":
-                        commander.RoleSpawnCommand(this, message);
+                        commander.RoleSpawnCommand(this, userMessage);
                         break;
 
                     case "%ping":
-                        commander.PingCommand(this, message);
+                        commander.PingCommand(this, userMessage);
                         break;
 
                     // cooldown does not affect actual game content, only the command itself
                     case "%dragon":
-                        commander.DragonCommand(this, message, username);
+                        commander.DragonCommand(this, userMessage, username);
                         break;
                 }
             }
@@ -228,6 +231,25 @@ namespace RemnaBotService.DiscordBot
                 Log($"MessageRecieved error: {ex.Message}");
             }
 
+        }
+
+        public void StartDragonGame(string username, IMessageChannel channel)
+        {
+            var messenger = new DiscordMessenger(this, channel, username);
+            var newGame = new EternalDragon(messenger);
+            activeGames.Add(username, newGame);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await newGame.Dragon(username);
+                }
+                finally
+                {
+                    activeGames.Remove(username);
+                }
+            });
         }
 
         public async Task SyncServerMembers(SocketGuild guild)

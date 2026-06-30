@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace RemnaBotService.DiscordBot
 {
-    internal class DiscordCommandHandler 
+    public class DiscordCommandHandler 
     {
         private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
         private readonly TimeSpan _standardCooldown = TimeSpan.FromSeconds(15);
@@ -27,9 +27,9 @@ namespace RemnaBotService.DiscordBot
             return false;
         }
 
-        public async void RoleSpawnCommand(DiscordClientContainter client, SocketMessage message)
+        public async Task RoleSpawnCommand(IDiscordClientWrapper client, IUserMessage message)
         {
-            if (message.Author is SocketGuildUser guildUser)
+            if (message.Author is IGuildUser guildUser)
             {
                 if (!guildUser.GuildPermissions.Administrator)
                 {
@@ -52,7 +52,7 @@ namespace RemnaBotService.DiscordBot
             await message.Channel.SendMessageAsync("Welcome! Click the buttons to add or remove roles:", components: builder.Build());
         }
 
-        public async void PingCommand(DiscordClientContainter client, SocketMessage message)
+        public async Task PingCommand(IDiscordClientWrapper client, IUserMessage message)
         {
             if (IsOnCooldown("ping", _standardCooldown))
             {
@@ -63,7 +63,7 @@ namespace RemnaBotService.DiscordBot
             client.LogCommand(message.Author.Id.ToString(), "ping");
         }
 
-        public async void DragonCommand(DiscordClientContainter client, SocketMessage message, string username)
+        public async Task DragonCommand(IDiscordClientWrapper client, IUserMessage message, string username)
         {
             if (IsOnCooldown("dragon", TimeSpan.FromSeconds(10)))
             {
@@ -72,21 +72,29 @@ namespace RemnaBotService.DiscordBot
             }
 
             // required so the bot does not make multiple game instances for one user 
-            if (!client.activeGames.ContainsKey(username))
+            if (!client.IsGameActive(username))
             {
-                var messenger = new DiscordMessenger(client, message.Channel, username);
-                var newGame = new EternalDragon(messenger);
-                client.activeGames.Add(username, newGame);
-
-                _ = Task.Run(async () =>
-                {
-                    try { await newGame.Dragon(username); }
-                    finally { client.activeGames.Remove(username); }
-                });
-
+                client.StartDragonGame(username, message.Channel);
                 await client.Say(message.Channel, "Dragon game started!");
             }
-            client.LogCommand(message.Author.Id.ToString(), "dragon");
+            else
+            {
+                await client.Say(message.Channel, $"{username}, you have already started a game!");
+            }
+
+                client.LogCommand(message.Author.Id.ToString(), "dragon");
+        }
+
+        public interface IDiscordClientWrapper
+        {
+            void Log(string message);
+            void LogCommand(string userId, string commandName);
+            Task Say(IMessageChannel channel, string text);
+
+            bool IsGameActive(string username);
+
+            void StartDragonGame(string username, IMessageChannel channel);
+
         }
     }
 }
