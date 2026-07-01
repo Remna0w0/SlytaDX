@@ -29,7 +29,7 @@ namespace RemnaBotService.TwitchBot
             _cooldowns[cooldownKey] = DateTime.Now;
             return false;
         }
-        public void BeepCommand(TwitchClientContainer client, OnChatCommandReceivedArgs e)
+        public void BeepCommand(ITwitchClientWrapper client, string userId)
         {
             if (IsOnCooldown("beep", _standardCooldown))
             {
@@ -37,11 +37,11 @@ namespace RemnaBotService.TwitchBot
                 return;
             }
             client.Say("Boop!");
-            client.LogCommand(e.ChatMessage.UserId, "beep");
+            client.LogCommand(userId, "beep");
         }
 
 
-        public async void ArenaCommand(TwitchClientContainer client, OnChatCommandReceivedArgs e, string arenaIDPath)
+        public async Task ArenaCommand(ITwitchClientWrapper client, string userId, string arenaIDPath)
         {
             if (IsOnCooldown("arena", TimeSpan.FromSeconds(10)))
             {
@@ -51,9 +51,9 @@ namespace RemnaBotService.TwitchBot
             await _fileLock.WaitAsync();
             try
             {
-                if (File.Exists(arenaIDPath))
+                if (client.FileExists(arenaIDPath))
                 {
-                    client.Say(File.ReadAllText(arenaIDPath));
+                    client.Say(client.ReadFileText(arenaIDPath));
                 }
                 else
                 {
@@ -63,16 +63,21 @@ namespace RemnaBotService.TwitchBot
                 }
             }
             finally { _fileLock.Release(); }
-            client.LogCommand(e.ChatMessage.UserId, "arena");
+            client.LogCommand(userId, "arena");
         }
 
-        public void DiscordCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e)
+        public void DiscordCommand(ITwitchClientWrapper client, string userId)
         {
+            if (IsOnCooldown("discord", _standardCooldown))
+            {
+                client.Log("discord is on cooldown.");
+                return;
+            }
             client.Say("You can join the discord at https://discord.gg/vtZtMAVVMh");
-            client.LogCommand(e.ChatMessage.UserId, "discord");
+            client.LogCommand(userId, "discord");
         }
 
-        public async void TourneyCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e, string tourneyPath, string tourneyLink)
+        public async Task TourneyCommand(ITwitchClientWrapper client, string userId, string tourneyPath)
         {
             if (IsOnCooldown("tourney", _standardCooldown))
             {
@@ -83,9 +88,9 @@ namespace RemnaBotService.TwitchBot
             await _fileLock.WaitAsync();
             try
             {
-                if (File.Exists(tourneyPath))
+                if (client.FileExists(tourneyPath))
                 {
-                    client.Say(tourneyLink);
+                    client.Say(client.ReadFileText(tourneyPath));
                 }
                 else
                 {
@@ -94,10 +99,10 @@ namespace RemnaBotService.TwitchBot
                 }
             }
             finally { _fileLock.Release(); }
-            client.LogCommand(e.ChatMessage.UserId, "tourney");
+            client.LogCommand(userId, "tourney");
         }
 
-        public void LurkCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e)
+        public void LurkCommand(ITwitchClientWrapper client, string userId)
         {
             if (IsOnCooldown("lurk", TimeSpan.FromSeconds(5)))
             {
@@ -106,25 +111,19 @@ namespace RemnaBotService.TwitchBot
             }
 
             client.Say("I see you big dog!");
-            client.LogCommand(e.ChatMessage.UserId, "lurk");
+            client.LogCommand(userId, "lurk");
         }
 
-        public async void SetIDCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e, string arenaIDPath)
+        public async Task SetIDCommand(ITwitchClientWrapper client, string userId, string idArg, string arenaIDPath)
         {
-            // The arena ID can only be set by mods or the streamer
-            // THIS IS IMPORTANT. Allowing this to be called by viewers is eseentially allowing anyone to write to a file on the machine running the program. Be cautious. 
-            if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
-            {
-                if (e.Command.ArgumentsAsList.Count > 0)
-                {
+                    
                     await _fileLock.WaitAsync();
                     try
                     {
-                        if (File.Exists(arenaIDPath))
+                        if (client.FileExists(arenaIDPath))
                         {
-                            string newID = e.Command.ArgumentsAsList[0];
-                            File.WriteAllText(arenaIDPath, newID);
-                            client.Say($"ID updated to: {newID}");
+                            client.WriteFileText(arenaIDPath, idArg);
+                            client.Say($"ID updated to: {idArg}");
                         }
                         else
                         {
@@ -133,46 +132,22 @@ namespace RemnaBotService.TwitchBot
                         }
                     }
                     finally { _fileLock.Release(); }
-                }
-                else
-                {
-                    client.Say($"{e.ChatMessage.Username}, please provide an ID!");
-                }
-            }
-            client.LogCommand(e.ChatMessage.UserId, "setid");
+
+                    client.LogCommand(userId, "setid");
         }
 
 
-        public void OpenArenaCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e, string arenaIDPath)
+        public void OpenArenaCommand(ITwitchClientWrapper client, string userId, string arenaIDPath)
         {
-            // This invokes the event which Discord uses to send an announcment
-            // IT IS IMPORTANT TO KEEP THIS COMMAND TO THE STREAMER ONLY. 
-            if (e.ChatMessage.IsBroadcaster)
-            {
-                if (IsOnCooldown("openarena", _standardCooldown))
-                {
-                    client.Log("openarena is on global cooldown.");
-                    return;
-                }
                 client.Say("Sending arena info to the discord server!");
-                ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {File.ReadAllText(arenaIDPath)}");
-            }
-            client.LogCommand(e.ChatMessage.UserId, "openarena");
+                ArenaOpen?.Invoke(this, $"<@&1514411853466308669>, a stream arena is open!\nID: {client.ReadFileText(arenaIDPath)}");
+            
+            client.LogCommand(userId, "openarena");
         }
 
 
-        public async void FollowageCommand(TwitchClientContainer client,OnChatCommandReceivedArgs e, string streamerID, string accessPath, string username)
+        public async Task FollowageCommand(ITwitchClientWrapper client, string viewerID, string username, string streamerID)
         {
-            if (string.IsNullOrEmpty(streamerID))
-            {
-                client.Log("Error: streamerID is null! Retrying fetch...");
-                await client.GetStreamerID();
-                if (string.IsNullOrEmpty(streamerID))
-                {
-                    client.Say("Sorry, I don't know who the streamer is yet. Try again in a moment.");
-                    return;
-                }
-            }
 
             if (IsOnCooldown("followage", _standardCooldown))
             {
@@ -180,12 +155,7 @@ namespace RemnaBotService.TwitchBot
                 return;
             }
 
-            string viewerID = e.ChatMessage.UserId;
-
-
-            client.API.Settings.ClientId = client.ClientID;
-            client.API.Settings.AccessToken = File.ReadAllText(accessPath);
-
+           
             client.Log($"DEBUG: Attempting followage check | ViewerID: '{viewerID}' | StreamerID: '{streamerID}'");
 
             if (viewerID == streamerID)
@@ -196,20 +166,18 @@ namespace RemnaBotService.TwitchBot
 
             try
             {
-                var followsResponse = await client.API.Helix.Channels.GetChannelFollowersAsync(
-                    broadcasterId: streamerID,
-                    userId: viewerID
-                );
 
-                if (followsResponse.Data == null || followsResponse.Data.Length == 0)
+                DateTime? followDate = await client.GetFollowDateAsync(streamerID, viewerID);
+
+                if (followDate == null)
                 {
                     client.Say($"{username} doesn't follow this channel!");
+                    client.LogCommand(viewerID, "followage");
                     return;
                 }
 
                 // Compare the time they followed to the time the command was called, 
-                DateTime followedAt = DateTime.Parse(followsResponse.Data[0].FollowedAt);
-                TimeSpan followDuration = DateTime.UtcNow - followedAt;
+                TimeSpan followDuration = DateTime.UtcNow - followDate.Value;
 
                 client.Say($"{username}, you have been following for {FormatTimeSpan(followDuration)}!");
             }
@@ -218,7 +186,7 @@ namespace RemnaBotService.TwitchBot
                 client.Log($"Followage API Error: {ex.Message}");
                 client.Say("I don't have permission to see followers! Make sure I'm a mod and have the right scopes.");
             }
-            client.LogCommand(e.ChatMessage.UserId, "followage");
+            client.LogCommand(viewerID, "followage");
         }
 
 
@@ -246,6 +214,23 @@ namespace RemnaBotService.TwitchBot
             }
 
             return string.Join(", ", parts);
+        }
+
+
+        public interface ITwitchClientWrapper
+        {
+            void Log(string message);
+            void LogCommand(string userId, string message);
+       
+            void Say(string message);
+
+            Task<DateTime?> GetFollowDateAsync(string streamerId, string viewerId);
+
+            bool FileExists(string path);
+            string ReadFileText(string path);
+
+            void WriteFileText(string path, string text);
+
         }
 
 

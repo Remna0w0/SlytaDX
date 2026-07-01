@@ -5,13 +5,15 @@ using TwitchLib.Api.Auth;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
+using TwitchLib.Communication.Interfaces;
+using static RemnaBotService.TwitchBot.TwitchCommandHandler;
 
 namespace RemnaBotService.TwitchBot;
 
 
 
 
-public class TwitchClientContainer : TwitchLogger
+public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 {
     /// <summary>
     /// Contains all tasks, commands, and means of intialization for the Twitch Bot
@@ -36,10 +38,11 @@ public class TwitchClientContainer : TwitchLogger
     public string Secret = File.ReadAllText(secretPath);
     public string ClientID = File.ReadAllText(clientIdPath);
     public string RefreshToken = File.ReadAllText(refreshPath);
-    public string arenaID = File.ReadAllText(arenaIDPath);
-    public string tourneyLink = File.ReadAllText(tourneyPath);
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
+    public bool FileExists(string path) => File.Exists(path);
+    public string ReadFileText(string path) => File.ReadAllText(path);
+    public void WriteFileText(string path, string text) => File.WriteAllText(path, text);
     // currentlyRefrshing stops the program from constantly trying to refresh itself, preventing crashes
     private bool currentlyRefreshing = false;
     // To ensure nothing tries to write to a file at the same time as something else
@@ -267,7 +270,7 @@ public class TwitchClientContainer : TwitchLogger
             switch (command)
             {
                 case "beep":
-                    commander.BeepCommand(this, e);
+                    commander.BeepCommand(this, e.ChatMessage.UserId);
                     break;
 
                     // multiple names for the same command to accomodate... ignorant users
@@ -275,35 +278,62 @@ public class TwitchClientContainer : TwitchLogger
                 case "join":
                 case "id":
                 case "arena":
-                    commander.ArenaCommand(this, e, arenaIDPath);
+                    await commander.ArenaCommand(this, e.ChatMessage.UserId, arenaIDPath);
                     break;
 
                 case "server":
                 case "discord":
-                    commander.DiscordCommand(this, e);
+                    commander.DiscordCommand(this, e.ChatMessage.UserId);
                     break;
 
                 case "bracket":
                 case "tourney":
-                    commander.TourneyCommand(this, e, tourneyPath, tourneyLink);
+                    await commander.TourneyCommand(this, e.ChatMessage.UserId, tourneyPath);
                     break;
 
                 case "lurk":
-                    commander.LurkCommand(this, e);
+                    commander.LurkCommand(this, e.ChatMessage.UserId);
                     break;
                 
 
                 case "setid":
-                    commander.SetIDCommand(this, e, arenaIDPath);
+                    // The arena ID can only be set by mods or the streamer
+                    // THIS IS IMPORTANT. Allowing this to be called by viewers is eseentially allowing anyone to write to a file on the machine running the program. Be cautious. 
+                    if (e.ChatMessage.UserDetail.IsModerator || e.ChatMessage.UserDetail.IsVip || e.ChatMessage.IsBroadcaster)
+                    {
+                        if (e.Command.ArgumentsAsList.Count > 0)
+                        {
+                            await commander.SetIDCommand(this, e.ChatMessage.UserId, e.Command.ArgumentsAsList[0], arenaIDPath);
+                        }
+                        else
+                        {
+                            Say($"{e.ChatMessage.Username}, please provide an ID!");
+                        }
+                    }
                     break;
 
                 case "openarena":
-                    commander.OpenArenaCommand(this, e, arenaIDPath);
+                    // This invokes the event which Discord uses to send an announcment
+                    // IT IS IMPORTANT TO KEEP THIS COMMAND TO THE STREAMER ONLY. 
+                    if (e.ChatMessage.IsBroadcaster)
+                    {
+                        commander.OpenArenaCommand(this, e.ChatMessage.UserId, arenaIDPath);
+                    }
                     break;
 
                     // Gets the time a given user has been following the channel
                 case "followage":
-                    commander.FollowageCommand(this, e, streamerID, accessPath, username);
+                    if (string.IsNullOrEmpty(streamerID))
+                    {
+                        Log("Error: streamerID is null! Retrying fetch...");
+                        await GetStreamerID();
+                        if (string.IsNullOrEmpty(streamerID))
+                        {
+                            Say("Sorry, I don't know who the streamer is yet. Try again in a moment.");
+                            break;
+                        }
+                    }
+                    await commander.FollowageCommand(this, e.ChatMessage.UserId, username, streamerID);
                     break;
 
             }
@@ -315,6 +345,25 @@ public class TwitchClientContainer : TwitchLogger
             Log(ex.ToString());
             Say("Error running command! Check logs!");
         }
+    }
+
+    public async Task<DateTime?> GetFollowDateAsync(string streamerId, string viewerId)
+    {
+        // The configuration logic you had inside the handler moves into the boundary container!
+        API.Settings.ClientId = ClientID;
+        API.Settings.AccessToken = File.ReadAllText(accessPath);
+
+        var followsResponse = await API.Helix.Channels.GetChannelFollowersAsync(
+            broadcasterId: streamerId,
+            userId: viewerId
+        );
+
+        if (followsResponse.Data == null || followsResponse.Data.Length == 0)
+        {
+            return null;
+        }
+
+        return DateTime.Parse(followsResponse.Data[0].FollowedAt);
     }
 
     // Updates the follower database
