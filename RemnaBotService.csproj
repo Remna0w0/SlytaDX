@@ -6,6 +6,7 @@
 	  <ApplicationIcon>RemSprite.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<DefaultItemExcludes>$(DefaultItemExcludes);SlytaTest\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
