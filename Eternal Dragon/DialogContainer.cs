@@ -168,6 +168,11 @@
         "Your vision fades as the dragon's shadow completely envelops the arena. Your valiant effort ends here, leaving your story as a tragic warning to future adventurers who dare challenge the eternal beast. ***Defeat...***",
         "With a terrifying roar, the dragon delivers a crushing final impact. Your weapon slips from your hands as you fall to the stone floor—the ancient beast remains undefeated. ***Defeat...***"
     }
+},
+{
+    "TieGame", new string[] {
+        "You lunge at each other with equal power, putting every ounce of your remaining energies into a final gambit. The exchange leaves you both sprawled across the battlefield, filling the air with a chilling silence... ***Its a Tie!!***"
+    }
 }
         };
 
