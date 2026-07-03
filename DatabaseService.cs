@@ -63,6 +63,21 @@ namespace RemnaBotService
 
         }
 
+        public record LeaderboardEntry(string Username, int GamesPlayed, int GamesWon, int GamesLost);
+
+        public virtual IEnumerable<LeaderboardEntry> GetTopPlayers(int limit = 10)
+        {
+            using var db = GetConnection();
+            
+            string query = @"
+        SELECT Username, GamesPlayed, GamesWon, GamesLost 
+        FROM ServerMembers 
+        WHERE GamesPlayed > 0
+        ORDER BY GamesWon DESC, GamesPlayed ASC 
+        LIMIT @Limit;";
+
+            return db.Query<LeaderboardEntry>(query, new { Limit = limit });
+        }
         public IDbConnection GetConnection()
         {
             return new SqliteConnection($"Data Source={_dbPath}");

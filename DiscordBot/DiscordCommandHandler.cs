@@ -85,6 +85,48 @@ namespace RemnaBotService.DiscordBot
                 client.LogCommand(message.Author.Id.ToString(), "dragon");
         }
 
+        public async Task LeaderboardCommand(IDiscordClientWrapper client, IUserMessage message, DatabaseService dbService)
+        {
+            if (IsOnCooldown("leaderboard", TimeSpan.FromSeconds(10)))
+            {
+                client.Log("Leaderboard command is on cooldown.");
+                return;
+            }
+
+            var topPlayers = dbService.GetTopPlayers(10).ToList();
+
+            if (!topPlayers.Any())
+            {
+                await client.Say(message.Channel, "The leaderboard is currently empty! Play `%dragon` to log the first record.");
+                client.LogCommand(message.Author.Id.ToString(), "leaderboard");
+                return;
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("🏆 **Top 10 Eternal Dragon Slayers** 🏆\n");
+            sb.AppendLine("` Rank | Wins | Played | Player `");
+            sb.AppendLine("`---------------------------------`");
+
+            for (int i = 0; i < topPlayers.Count; i++)
+            {
+                var player = topPlayers[i];
+                string rank = (i + 1).ToString().PadRight(4);
+                string wins = player.GamesWon.ToString().PadRight(4);
+                string played = player.GamesPlayed.ToString().PadRight(6);
+
+                sb.AppendLine($"` #{rank} | {wins} | {played} `  **{player.Username}**");
+            }
+
+            var embedBuilder = new EmbedBuilder()
+                .WithTitle("Server Hall of Fame")
+                .WithDescription(sb.ToString())
+                .WithColor(Color.Gold)
+                .WithCurrentTimestamp();
+
+            await message.Channel.SendMessageAsync(embed: embedBuilder.Build());
+            client.LogCommand(message.Author.Id.ToString(), "leaderboard");
+        }
+
         public interface IDiscordClientWrapper
         {
             void Log(string message);

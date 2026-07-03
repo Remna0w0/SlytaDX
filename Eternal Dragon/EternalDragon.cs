@@ -1,4 +1,5 @@
-﻿using RemnaBotService.Eternal_Dragon;
+﻿using Dapper;
+using RemnaBotService.Eternal_Dragon;
 
 namespace RemnaBotService
 {
@@ -9,6 +10,7 @@ namespace RemnaBotService
         /// </summary>
         public BotMessenger _messenger { get; }
         Random random = new Random();
+        private DatabaseService _databaseService = new DatabaseService();
 
         public EternalDragon(BotMessenger messenger)
         {
@@ -120,12 +122,48 @@ namespace RemnaBotService
                         fight.startGame = false;
                         fight.quitGame = true;
                         gameOver = true;
+                        string conclusion;
 
-                        string conclusion = fight._player.HP <= 0
-                            ? DialogContainer.GetText("PlayerDefeat")
-                            : DialogContainer.GetText("PlayerVictory");
+                        if (fight._player.HP <= 0 && fight._dragon.HP > 0)
+                        {
+                            conclusion = DialogContainer.GetText("PlayerDefeat");
 
-                        conclusionMessage = $"**{conclusion}**\n\nYour Final HP: {fight._player.HP} | Dragon's Final HP: {fight._dragon.HP}";
+                            using var db = _databaseService.GetConnection();
+
+                            string updateSql = "UPDATE ServerMembers SET GamesPlayed = GamesPlayed + 1, GamesLost = GamesLost + 1 WHERE Username = @username";
+
+                            db.Execute(updateSql, new
+                            {
+                                username = username
+                            });
+                        }
+                        else if (fight._player.HP > 0 && fight._dragon.HP <= 0)
+                        {
+                            conclusion = DialogContainer.GetText("PlayerVictory");
+
+                            using var db = _databaseService.GetConnection();
+
+                            string updateSql = "UPDATE ServerMembers SET GamesPlayed = GamesPlayed + 1, GamesWon = GamesWon + 1 WHERE Username = @username";
+
+                            db.Execute(updateSql, new
+                            {
+                                username = username
+                            });
+                        }
+                        else
+                        {
+                            conclusion = DialogContainer.GetText("TieGame");
+
+                            using var db = _databaseService.GetConnection();
+                            string updateSql = "UPDATE ServerMembers SET GamesPlayed = GamesPlayed + 1 WHERE Username = @username";
+
+                            db.Execute(updateSql, new
+                            {
+                                username = username
+                            });
+                        }
+
+                            conclusionMessage = $"**{conclusion}**\n\nYour Final HP: {fight._player.HP} | Dragon's Final HP: {fight._dragon.HP}";
                     }
 
 
