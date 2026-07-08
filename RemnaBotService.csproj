@@ -18,6 +18,7 @@
     <PackageReference Include="TwitchLib.Api.Core.Enums" Version="3.10.2" />
     <PackageReference Include="TwitchLib.Api.Helix.Models" Version="3.10.2" />
     <PackageReference Include="TwitchLib.Client" Version="4.0.1" />
+    <PackageReference Include="WatsonWebsocket" Version="4.1.8" />
   </ItemGroup>
 
 </Project>

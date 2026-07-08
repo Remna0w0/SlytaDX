@@ -1,11 +1,13 @@
 ﻿using Dapper;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 using TwitchLib.Communication.Interfaces;
+using WatsonWebsocket;
 using static RemnaBotService.TwitchBot.TwitchCommandHandler;
 
 namespace RemnaBotService.TwitchBot;
@@ -51,7 +53,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     public readonly TimeSpan _cooldown = TimeSpan.FromMinutes(2);
     public event EventHandler<string> OnStreamGoLive;
     public TwitchCommandHandler commander = new TwitchCommandHandler();
-
+    WatsonWsServer wsServer;
 
 
 
@@ -75,7 +77,8 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
             return;
         }
 
-
+        wsServer = new WatsonWsServer("*", 8085, false);
+        wsServer.Start();
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
         Client.OnConnected += OnConnected;
         Client.OnJoinedChannel += JoinedChannel;
@@ -87,6 +90,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         await ValidateTokenScopes();
         await GetStreamerID();
         await SyncFollowers();
+
 
         Client.OnDisconnected += async (sender, e) =>
         {
@@ -469,6 +473,23 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                 isMod = isMod ? 1 : 0,
                 id = userID
             });
+        }
+
+        var payload = new
+        {
+            Type = "ChatMessage",
+            Username = e.ChatMessage.Username,
+            Message = e.ChatMessage.Message,
+            IsMod = e.ChatMessage.UserDetail.IsModerator,
+            IsVip = e.ChatMessage.UserDetail.IsVip,
+            IsBroadcaster = e.ChatMessage.IsBroadcaster
+        };
+
+        string jsonString = JsonSerializer.Serialize(payload);
+
+        foreach (var client in wsServer.ListClients())
+        {
+            await wsServer.SendAsync(client.Guid, jsonString);
         }
     }
 
