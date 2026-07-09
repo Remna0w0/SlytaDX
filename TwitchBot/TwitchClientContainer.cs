@@ -83,6 +83,9 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         Client.OnConnected += OnConnected;
         Client.OnJoinedChannel += JoinedChannel;
         Client.OnMessageReceived += MessageReceived;
+        Client.OnMessageCleared += OnMessageCleared;
+        Client.OnUserTimedout += async (s, e) => await HandleUserPurge(e.UserTimeout.Username);
+        Client.OnUserBanned += async (s, e) => await HandleUserPurge(e.UserBan.Username);
         Client.OnChatCommandReceived += ChatCommand;
         Client.Initialize(Credentials);
         await Client.ConnectAsync();
@@ -475,11 +478,32 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
             });
         }
 
+        if (e.ChatMessage.Username.ToLower() == "slytabot")
+        {
+            return; 
+        }
+
+        string processedMessage = e.ChatMessage.Message;
+
+        if (e.ChatMessage.EmoteSet != null && e.ChatMessage.EmoteSet.Emotes.Count > 0)
+        {
+            var sortedEmotes = e.ChatMessage.EmoteSet.Emotes
+                .OrderByDescending(x => x.StartIndex);
+
+            foreach (var emote in sortedEmotes)
+            {
+                processedMessage = processedMessage.Remove(emote.StartIndex, (emote.EndIndex - emote.StartIndex) + 1)
+                                                   .Insert(emote.StartIndex, $"{{EMOTE:{emote.Id}}}");
+            }
+        }
+
         var payload = new
         {
             Type = "ChatMessage",
+            MessageID = e.ChatMessage.Id,
             Username = e.ChatMessage.Username,
-            Message = e.ChatMessage.Message,
+            UserColor = string.IsNullOrEmpty(e.ChatMessage.HexColor) ? "#FFB080" : e.ChatMessage.HexColor,
+            Message = processedMessage,
             IsMod = e.ChatMessage.UserDetail.IsModerator,
             IsVip = e.ChatMessage.UserDetail.IsVip,
             IsBroadcaster = e.ChatMessage.IsBroadcaster
@@ -490,6 +514,54 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         foreach (var client in wsServer.ListClients())
         {
             await wsServer.SendAsync(client.Guid, jsonString);
+        }
+    }
+
+    private async Task OnMessageCleared(object sender, OnMessageClearedArgs e)
+    {
+        try
+        {
+            var deletePayload = new
+            {
+                Type = "DeleteMessage",
+                TargetMessageId = e.TargetMessageId 
+            };
+
+            string json = JsonSerializer.Serialize(deletePayload);
+
+            foreach (var client in wsServer.ListClients())
+            {
+                await wsServer.SendAsync(client.Guid, json);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[DELETION ERROR] Failed to forward clear command: {ex.Message}");
+        }
+    }
+
+    private async Task HandleUserPurge(string username)
+    {
+        try
+        {
+            var purgePayload = new
+            {
+                Type = "ClearUserMessages",
+                TargetUsername = username
+            };
+
+            string json = JsonSerializer.Serialize(purgePayload);
+
+            foreach (var client in wsServer.ListClients())
+            {
+                await wsServer.SendAsync(client.Guid, json);
+            }
+
+            Log($"[MODERATION] Sent clear command for timed out/banned user: {username}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[PURGE ERROR] Failed to forward user wipe: {ex.Message}");
         }
     }
 
