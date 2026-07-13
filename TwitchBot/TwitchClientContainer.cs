@@ -78,6 +78,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         }
 
         wsServer = new WatsonWsServer("*", 8085, false);
+        wsServer.MessageReceived += OnWSSocketMessageReceived;
         wsServer.Start();
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
         Client.OnConnected += OnConnected;
@@ -514,6 +515,34 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         foreach (var client in wsServer.ListClients())
         {
             await wsServer.SendAsync(client.Guid, jsonString);
+        }
+    }
+
+    private void OnWSSocketMessageReceived(object sender, MessageReceivedEventArgs e)
+    {
+        try
+        {
+            string jsonString = System.Text.Encoding.UTF8.GetString(e.Data);
+            Log($"[Websocket Received]: {jsonString}");
+
+            using JsonDocument doc = JsonDocument.Parse(jsonString);
+            JsonElement root = doc.RootElement;
+
+            if (root.TryGetProperty("Action", out JsonElement actionProp))
+            {
+                string action = actionProp.GetString();
+
+                if (action == "OpenArena")
+                {
+                    Log("[DASHBOARD ACTION] Remote execution of OpenArena triggered.");
+
+                    commander.OpenArenaCommand(this, "DashboardAdmin", arenaIDPath);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[Websocket Inbound Error]; {ex.Message}");
         }
     }
 
