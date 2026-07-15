@@ -465,9 +465,10 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     }
 
 
-
+    int followListTick = 0;
     private async Task MessageReceived(object? sender, OnMessageReceivedArgs e)
     {
+        followListTick++;
         Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
         bool isMod = e.ChatMessage.UserDetail.IsModerator;
         string userID = e.ChatMessage.UserId.ToString();
@@ -548,10 +549,13 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         {
             await wsServer.SendAsync(client.Guid, jsonString);
         }
-
-        foreach(var client in wsServer.ListClients())
+        if (followListTick >= 10)
         {
-            await SendFollowersToClient(client.Guid);
+            foreach (var client in wsServer.ListClients())
+            {
+                await SendFollowersToClient(client.Guid);
+            }
+            followListTick = 0;
         }
     }
 
