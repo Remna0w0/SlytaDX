@@ -22,3 +22,9 @@ export interface FollowerListPayload {
     Type: 'FollowerList';
     Data: DbFollower[];
 }
+
+export interface StreamLiveStatusPayload
+{
+    Type: string;
+    LiveStatus: boolean;
+}
