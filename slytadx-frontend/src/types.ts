@@ -9,3 +9,16 @@ export interface ChatMessagePayload
     IsVip: boolean;
     IsBroadcaster: boolean;
 }
+
+export interface DbFollower {
+    UserID: string;
+    Username: string;
+    FollowDate: string;
+    IsModerator: number;
+    Message_Count: number;
+}
+
+export interface FollowerListPayload {
+    Type: 'FollowerList';
+    Data: DbFollower[];
+}

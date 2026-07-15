@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
@@ -449,34 +450,37 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         // Updates the users database entry every time they send a message, ensuring their information is consistent as long as they are chatting
         // Also catches any new followers not caught in the database, as long as they are chatting
-        if (exists == 0)
+        if (!e.ChatMessage.IsBroadcaster)
         {
-            var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
-            DateTime followDate = DateTime.Now;
-            if (followCheck.Data.Length > 0)
+            if (exists == 0)
             {
-                followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
-            }
-            string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator, Message_Count)
+                var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
+                DateTime followDate = DateTime.Now;
+                if (followCheck.Data.Length > 0)
+                {
+                    followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
+                }
+                string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator, Message_Count)
                                VALUES (@id, @name, @joinDate, @isMod, @msgCount)";
-            db.Execute(insertSql, new
+                db.Execute(insertSql, new
+                {
+                    id = userID,
+                    name = e.ChatMessage.Username,
+                    joinDate = followDate,
+                    isMod = isMod ? 1 : 0,
+                    msgCount = 1
+                });
+                Log($"New follower {e.ChatMessage.Username} added to the database!");
+            }
+            else
             {
-                id = userID,
-                name = e.ChatMessage.Username,
-                joinDate = followDate,
-                isMod = isMod ? 1 : 0,
-                msgCount = 1
-            });
-            Log($"New follower {e.ChatMessage.Username} added to the database!");
-        }
-        else
-        {
-            string updateSql = "UPDATE Viewers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
-            db.Execute(updateSql, new
-            {
-                isMod = isMod ? 1 : 0,
-                id = userID
-            });
+                string updateSql = "UPDATE Viewers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
+                db.Execute(updateSql, new
+                {
+                    isMod = isMod ? 1 : 0,
+                    id = userID
+                });
+            }
         }
 
         if (e.ChatMessage.Username.ToLower() == "slytabot")
@@ -516,9 +520,14 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         {
             await wsServer.SendAsync(client.Guid, jsonString);
         }
+
+        foreach(var client in wsServer.ListClients())
+        {
+            await SendFollowersToClient(client.Guid);
+        }
     }
 
-    private void OnWSSocketMessageReceived(object sender, MessageReceivedEventArgs e)
+    private async void OnWSSocketMessageReceived(object sender, MessageReceivedEventArgs e)
     {
         try
         {
@@ -537,6 +546,12 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                     Log("[DASHBOARD ACTION] Remote execution of OpenArena triggered.");
 
                     commander.OpenArenaCommand(this, "DashboardAdmin", arenaIDPath);
+                }
+
+                else if (action == "GetFollowers")
+                {
+                    Log("[DASHBOARD ACTION] Client requested follower list. Querying database...");
+                    await SendFollowersToClient(e.Client.Guid);
                 }
             }
         }
@@ -591,6 +606,38 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         catch (Exception ex)
         {
             Log($"[PURGE ERROR] Failed to forward user wipe: {ex.Message}");
+        }
+    }
+
+    private async Task SendFollowersToClient(Guid clientGuid)
+    {
+        try
+        {
+            using var db = _databaseService.GetConnection();
+
+            string sql = @"
+                SELECT UserID, Username, FollowDate, IsModerator, Message_Count
+                FROM Viewers
+                WHERE Message_Count > 0
+                ORDER BY Message_Count DESC
+                LIMIT 100";
+
+            var followers = db.Query(sql).ToList();
+
+            var payload = new
+            {
+                Type = "FollowerList",
+                Data = followers
+            };
+
+            string json = JsonSerializer.Serialize(payload);
+
+            await wsServer.SendAsync(clientGuid, json);
+            Log($"[Websocket Sent] Dispatched {followers.Count} database records to client {clientGuid}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DATABASE TO WEBSOCKET ERROR]: {ex.Message}");
         }
     }
 

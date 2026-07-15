@@ -1,10 +1,11 @@
 // src/App.tsx
 import { useEffect, useState, useRef } from 'react';
-import { type ChatMessagePayload } from './types'; 
+import { type ChatMessagePayload, type DbFollower, type FollowerListPayload } from './types'; 
 
 
 export default function App() {
   const [messages, setMessages] = useState<ChatMessagePayload[]>([]);
+  const [followers, setFollowers] = useState<DbFollower[]>([]);
 
   const socketRef = useRef<WebSocket | null>(null);
   // 2. Lifecycle Hook (Runs automatically when the web page loads)
@@ -14,16 +15,24 @@ export default function App() {
 
     socket.onopen = () => {
       console.log('Successfully connected to SlytaBot Backend!');
+
+      const requestPayload = {
+        Action: "GetFollowers"
+      };
+      socket.send(JSON.stringify(requestPayload));
+      console.log('Requested follower list from backend database.')
     };
 
-    // When a message arrives from your C# app
     socket.onmessage = (event) => {
-      // Parse the raw JSON text string back into a typed TypeScript object
-      const data: ChatMessagePayload = JSON.parse(event.data);
+      const rawData = JSON.parse(event.data);
 
-      if (data.Type === 'ChatMessage') {
-        // Append the new message to our list (array)
-        setMessages((prev) => [...prev, data]);
+      if (rawData.Type === 'ChatMessage') {
+
+        setMessages((prev) => [...prev, rawData as ChatMessagePayload]);
+      }
+      else if (rawData.Type === 'FollowerList') {
+        const listPayload = rawData as FollowerListPayload;
+        setFollowers(listPayload.Data);
       }
     };
 
@@ -59,15 +68,59 @@ return (
       >
         📢 Open Smash Arena (Broadcast to Discord)
       </button>
-
-      <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '400px', overflowY: 'auto' }}>
-        {messages.map((msg) => (
-          <div key={msg.MessageID} style={{ marginBottom: '10px', fontSize: '16px' }}>
-            <strong style={{ color: msg.UserColor }}>{msg.Username}: </strong>
-            <span>{msg.Message}</span>
+      
+      <div style={{ flex: '1', minWidth: '300px' }}>
+          <h2>Live Chat</h2>
+          <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
+            {messages.map((msg) => (
+              <div key={msg.MessageID} style={{ marginBottom: '10px', fontSize: '16px' }}>
+                <strong style={{ color: msg.UserColor }}>{msg.Username}: </strong>
+                <span>{msg.Message}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        
+<div style={{ flex: '1.5', minWidth: '400px' }}>
+          <h2>Top Active Database Viewers</h2>
+          <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #444', color: '#888' }}>
+                  <th style={{ padding: '8px' }}>Username</th>
+                  <th style={{ padding: '8px' }}>Mod</th>
+                  <th style={{ padding: '8px' }}>Followed At</th>
+                  <th style={{ padding: '8px', textAlign: 'right' }}>Total Messages</th>
+                </tr>
+              </thead>
+              <tbody>
+                {followers.map((follower) => (
+                  <tr key={follower.UserID} style={{ borderBottom: '1px solid #2a2a2a' }}>
+                    <td style={{ padding: '8px', fontWeight: 'bold' }}>
+                      {follower.Username}
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      {follower.IsModerator === 1 ? (
+                        <span style={{ backgroundColor: '#04d361', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                          MOD
+                        </span>
+                      ) : (
+                        <span style={{ color: '#555', fontSize: '12px' }}>no</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#aaa' }}>
+                      {new Date(follower.FollowDate).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#9146FF' }}>
+                      {follower.Message_Count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
-    </div>
   );
 }
