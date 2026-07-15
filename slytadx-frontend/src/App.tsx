@@ -1,11 +1,15 @@
 // src/App.tsx
-import { useEffect, useState, useRef } from 'react';
-import { type ChatMessagePayload, type DbFollower, type FollowerListPayload } from './types'; 
+import { useEffect, useState, useRef, type JSX } from 'react';
+import { type ChatMessagePayload, type DbFollower, type FollowerListPayload, type StreamLiveStatusPayload } from './types'; 
 
 
 export default function App() {
   const [messages, setMessages] = useState<ChatMessagePayload[]>([]);
   const [followers, setFollowers] = useState<DbFollower[]>([]);
+  const [arenaCode, setArenaCode] = useState<string>('');
+  const [liveStatus, setLiveStatus] = useState<boolean>(false);
+
+
 
   const socketRef = useRef<WebSocket | null>(null);
   // 2. Lifecycle Hook (Runs automatically when the web page loads)
@@ -34,7 +38,13 @@ export default function App() {
         const listPayload = rawData as FollowerListPayload;
         setFollowers(listPayload.Data);
       }
+      else if (rawData.Type === 'StreamLiveStatus') {
+        const isLive = rawData as StreamLiveStatusPayload;
+        setLiveStatus(isLive.LiveStatus);
+      }
     };
+
+  
 
     // Clean up the connection if the browser tab closes
     return () => socket.close();
@@ -48,6 +58,7 @@ const handleOpenArena = () => {
       Action: 'OpenArena',
       TargetChannel: 'remnapi'
     };
+    
 
     socketRef.current.send(JSON.stringify(actionPayload));
     console.log('Sent OpenArena action to C# backend')
@@ -57,31 +68,173 @@ const handleOpenArena = () => {
   }
 };
 
+const handleUpdateArenaCode = () => {
+  if (!arenaCode.trim()) {
+    alert('Please enter a valid Arena Code!');
+    return;
+  }
+
+  if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+    const actionPayload = {
+      Action: 'UpdateArenaCode',
+      Code: arenaCode
+    };
+
+    socketRef.current.send(JSON.stringify(actionPayload));
+    console.log (`Sent request to update Arena Code to: ${arenaCode}`);
+    setArenaCode('');
+  } else {
+    alert('Websocket is Offline!');
+  }
+};
+
+function convertMessageEmotes(message : string) : (string | JSX.Element)[] {
+  let words = message.split(' ')
+   return words.map((word, index) => {
+  if (word.startsWith('{EMOTE:') && word.endsWith('}')) {
+    const emoteId = word.replace("{EMOTE:", "").replace("}", "")
+
+    return (
+      <img 
+      key={index}
+      src={`https://static-cdn.jtvnw.net/emoticons/v2/${emoteId}/default/dark/1.0`}
+      alt="emote"
+      style={{
+        width: '24px',
+        height: '24px',
+        verticalAlign: 'middle',
+        margin: '0 2px'
+      }}
+      />
+    );  
+  } else {
+    return word + ' ';
+  }
+  
+});
+}
+
 return (
-    <div style={{ padding: '20px', backgroundColor: '#1e1e1e', color: '#fff', minHeight: '100vh' }}>
-      <h1>SlytaDX Control Center</h1>
+  <div style={{ padding: '20px', backgroundColor: '#1e1e1e', color: '#fff', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    
+    {/* Header & Live Status Indicator Panel */}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <h1 style={{ margin: 0 }}>SlytaDX Control Center</h1>
       
-      {/* 4. The Action Button */}
-      <button 
-        onClick={handleOpenArena}
-        style={{ padding: '10px 20px', fontSize: '16px', backgroundColor: '#9146FF', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '20px' }}
-      >
-        📢 Open Smash Arena (Broadcast to Discord)
-      </button>
+      {/* 🟢/🔴 Live Status Box */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px', 
+        backgroundColor: '#252526', 
+        padding: '6px 12px', 
+        borderRadius: '20px', 
+        border: '1px solid #333'
+      }}>
+        {/* The Indicator Dot */}
+        <span style={{
+          width: '10px',
+          height: '10px',
+          borderRadius: '50%',
+          display: 'inline-block',
+          backgroundColor: liveStatus ? '#04d361' : '#555555', // Bright Green vs. Dark Gray[cite: 12]
+          boxShadow: liveStatus ? '0 0 8px #04d361' : 'none' // Gives the green dot a nice "glowing" effect!
+        }} />
+        
+        {/* The Text Status */}
+        <span style={{ 
+          fontSize: '14px', 
+          fontWeight: 'bold', 
+          letterSpacing: '0.5px',
+          color: liveStatus ? '#04d361' : '#aaaaaa'
+        }}>
+          {liveStatus ? 'LIVE' : 'OFFLINE'}
+        </span>
+      </div>
+      </div>
+
       
+{/* Utility Control Panel */}
+<div style={{ 
+  display: 'flex', 
+  gap: '15px', 
+  alignItems: 'center', 
+  backgroundColor: '#252526', 
+  padding: '15px', 
+  borderRadius: '8px', 
+  marginBottom: '20px',
+  border: '1px solid #333'
+}}>
+  
+  {/* Arena Code Input & Submit */}
+  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+    <label style={{ fontWeight: 'bold', fontSize: '14px', color: '#ccc' }}>New Arena Code:</label>
+    <input 
+      type="text" 
+      value={arenaCode} 
+      onChange={(e) => setArenaCode(e.target.value)} 
+      placeholder="e.g., 5Y8X9"
+      style={{ 
+        padding: '8px 12px', 
+        fontSize: '14px', 
+        borderRadius: '4px', 
+        border: '1px solid #555', 
+        backgroundColor: '#1e1e1e', 
+        color: '#fff',
+        width: '150px'
+      }} 
+    />
+    <button 
+      onClick={handleUpdateArenaCode}
+      style={{ 
+        padding: '8px 16px', 
+        backgroundColor: '#04d361', 
+        color: '#000', 
+        border: 'none', 
+        borderRadius: '4px', 
+        fontWeight: 'bold', 
+        cursor: 'pointer' 
+      }}
+    >
+      💾 Set Arena Code
+    </button>
+  </div>
+
+  {/* Vertical Divider */}
+  <div style={{ width: '1px', height: '30px', backgroundColor: '#444' }}></div>
+
+  {/* Existing Discord Broadcast Button */}
+  <button 
+    onClick={handleOpenArena}
+    style={{ 
+      padding: '8px 16px', 
+      fontSize: '14px', 
+      backgroundColor: '#9146FF', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '4px', 
+      fontWeight: 'bold',
+      cursor: 'pointer' 
+    }}
+  >
+    📢 Broadcast Arena to Discord
+  </button>
+</div>
+      
+      <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
       <div style={{ flex: '1', minWidth: '300px' }}>
           <h2>Live Chat</h2>
           <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
             {messages.map((msg) => (
               <div key={msg.MessageID} style={{ marginBottom: '10px', fontSize: '16px' }}>
                 <strong style={{ color: msg.UserColor }}>{msg.Username}: </strong>
-                <span>{msg.Message}</span>
+                <span>{convertMessageEmotes(msg.Message)}</span>
               </div>
             ))}
           </div>
         </div>
         
-<div style={{ flex: '1.5', minWidth: '400px' }}>
+        <div style={{ flex: '1.5', minWidth: '400px' }}>
           <h2>Top Active Database Viewers</h2>
           <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -120,6 +273,7 @@ return (
             </table>
           </div>
         </div>
+      </div>
 
       </div>
   );

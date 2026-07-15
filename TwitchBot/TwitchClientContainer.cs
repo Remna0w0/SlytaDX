@@ -164,11 +164,39 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                 isLive = true;
                 OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi");
                 Log("Streamer is LIVE! Rechecking in 60 seconds...");
+                
+                var payload = new
+                {
+                    Type = "StreamLiveStatus",
+                    LiveStatus = isLive
+                };
+
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("Updated dashboard Live status to ONLINE.");
             }
             else if (!live)
             {
                 isLive = false;
                 Log("Streamer is OFFLINE! Rechecking in 60 seconds...");
+
+                var payload = new
+                {
+                    Type = "StreamLiveStatus",
+                    LiveStatus = isLive
+                };
+
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("Updated dashboard Live status to OFFLINE.");
             }
         }
         // This method also serves as a status check for the bot, updating its tokens when expired 
@@ -552,6 +580,17 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                 {
                     Log("[DASHBOARD ACTION] Client requested follower list. Querying database...");
                     await SendFollowersToClient(e.Client.Guid);
+                }
+
+                else if (action == "UpdateArenaCode")
+                {
+                    if (root.TryGetProperty("Code", out JsonElement codeProp))
+                    {
+                        string newCode = codeProp.GetString();
+                        Log($"[DASHBOARD ACTION] Client has pushed new Arena ID: {newCode} ");
+
+                        commander.SetIDCommand(this, "REMOTECLIENT", newCode, arenaIDPath);
+                    }
                 }
             }
         }
