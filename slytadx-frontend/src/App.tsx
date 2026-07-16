@@ -12,6 +12,7 @@ export default function App() {
 
 
   const socketRef = useRef<WebSocket | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
   // 2. Lifecycle Hook (Runs automatically when the web page loads)
   useEffect(() => {
     const socket = new WebSocket('ws://192.168.1.102:8085/');
@@ -44,6 +45,11 @@ export default function App() {
       }
     };
 
+    useEffect(() => {
+  if (chatContainerRef.current) {
+    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+  }
+}, [messages]);
   
 
     // Clean up the connection if the browser tab closes
@@ -224,7 +230,7 @@ return (
       <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
       <div style={{ flex: '1', minWidth: '300px' }}>
           <h2>Live Chat</h2>
-          <div style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
+          <div ref={chatContainerRef} style={{ border: '1px solid #444', borderRadius: '8px', padding: '15px', height: '450px', overflowY: 'auto', backgroundColor: '#121212' }}>
             {messages.map((msg) => (
               <div key={msg.MessageID} style={{ marginBottom: '10px', fontSize: '16px' }}>
                 <strong style={{ color: msg.UserColor }}>{msg.Username}: </strong>
