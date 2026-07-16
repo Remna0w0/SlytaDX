@@ -159,13 +159,19 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
             bool live = response.Streams.Length > 0;
 
+            var payload = new
+            {
+                Type = "StreamLiveStatus",
+                LiveStatus = isLive
+            };
+
             if (live && !isLive)
             {
                 isLive = true;
                 OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi");
                 Log("Streamer is LIVE! Rechecking in 60 seconds...");
-                
-                var payload = new
+
+                payload = new
                 {
                     Type = "StreamLiveStatus",
                     LiveStatus = isLive
@@ -177,26 +183,35 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                 {
                     await wsServer.SendAsync(client.Guid, jsonString);
                 }
-                Log("Updated dashboard Live status to ONLINE.");
+                Log("[Websocket Sent] Updated dashboard Live status to ONLINE.");
             }
             else if (!live)
             {
                 isLive = false;
                 Log("Streamer is OFFLINE! Rechecking in 60 seconds...");
 
-                var payload = new
+                payload = new
                 {
                     Type = "StreamLiveStatus",
                     LiveStatus = isLive
                 };
-
                 string jsonString = JsonSerializer.Serialize(payload);
 
                 foreach (var client in wsServer.ListClients())
                 {
                     await wsServer.SendAsync(client.Guid, jsonString);
                 }
-                Log("Updated dashboard Live status to OFFLINE.");
+                Log("[Websocket Sent] Updated dashboard Live status to OFFLINE.");
+            }
+            else if (live && isLive)
+            {
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("[Websocket Sent] Updated dashboard Live status to ONLINE.");
             }
         }
         // This method also serves as a status check for the bot, updating its tokens when expired 
