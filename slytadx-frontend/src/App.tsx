@@ -22,7 +22,7 @@ export default function App() {
 
 
   useEffect(() => {
-    const socket = new WebSocket('ws://192.168.1.102:8085/');
+    const socket = new WebSocket('wss://api.remnapi.net');
     socketRef.current = socket;
 
     socket.onopen = () => {

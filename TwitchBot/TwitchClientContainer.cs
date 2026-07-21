@@ -80,6 +80,18 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         wsServer = new WatsonWsServer("*", 8085, false);
         wsServer.MessageReceived += OnWSSocketMessageReceived;
+        wsServer.ClientConnected += (sender, args) =>
+        {
+            string origin = args.HttpRequest.Headers["Origin"];
+
+            Log($"[WS CONNECT] New connection attempt from Origin: {origin}");
+
+            if (origin != "https://dashboard.remnapi.net" && origin != "http://localhost:3000")
+            {
+                Log($"[WS SECURITY] Disconnecting unauthorized Origin: {origin}");
+            }
+        };
+
         wsServer.Start();
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
         Client.OnConnected += OnConnected;
@@ -115,6 +127,8 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         initializationCompletionSource.SetResult(); // Signal initialization complete
     }
+
+    
 
     // Prints a list of all current allowed scopes so you can be sure your tokens are correct
     public async Task ValidateTokenScopes()
