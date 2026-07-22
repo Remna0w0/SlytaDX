@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using TwitchLib.Client;
@@ -78,6 +79,19 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         }
 
         wsServer = new WatsonWsServer("*", 8085, false);
+        wsServer.MessageReceived += OnWSSocketMessageReceived;
+        wsServer.ClientConnected += (sender, args) =>
+        {
+            string origin = args.HttpRequest.Headers["Origin"];
+
+            Log($"[WS CONNECT] New connection attempt from Origin: {origin}");
+
+            if (origin != "https://dashboard.remnapi.net" && origin != "http://localhost:3000")
+            {
+                Log($"[WS SECURITY] Disconnecting unauthorized Origin: {origin}");
+            }
+        };
+
         wsServer.Start();
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
         Client.OnConnected += OnConnected;
@@ -113,6 +127,8 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         initializationCompletionSource.SetResult(); // Signal initialization complete
     }
+
+    
 
     // Prints a list of all current allowed scopes so you can be sure your tokens are correct
     public async Task ValidateTokenScopes()
@@ -157,16 +173,59 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
             bool live = response.Streams.Length > 0;
 
+            var payload = new
+            {
+                Type = "StreamLiveStatus",
+                LiveStatus = isLive
+            };
+
             if (live && !isLive)
             {
                 isLive = true;
                 OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi");
                 Log("Streamer is LIVE! Rechecking in 60 seconds...");
+
+                payload = new
+                {
+                    Type = "StreamLiveStatus",
+                    LiveStatus = isLive
+                };
+
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("[Websocket Sent] Updated dashboard Live status to ONLINE.");
             }
             else if (!live)
             {
                 isLive = false;
                 Log("Streamer is OFFLINE! Rechecking in 60 seconds...");
+
+                payload = new
+                {
+                    Type = "StreamLiveStatus",
+                    LiveStatus = isLive
+                };
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("[Websocket Sent] Updated dashboard Live status to OFFLINE.");
+            }
+            else if (live && isLive)
+            {
+                string jsonString = JsonSerializer.Serialize(payload);
+
+                foreach (var client in wsServer.ListClients())
+                {
+                    await wsServer.SendAsync(client.Guid, jsonString);
+                }
+                Log("[Websocket Sent] Updated dashboard Live status to ONLINE.");
             }
         }
         // This method also serves as a status check for the bot, updating its tokens when expired 
@@ -435,9 +494,10 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     }
 
 
-
+    int followListTick = 0;
     private async Task MessageReceived(object? sender, OnMessageReceivedArgs e)
     {
+        followListTick++;
         Log($"Message from {e.ChatMessage.Username}:{e.ChatMessage.Message}");
         bool isMod = e.ChatMessage.UserDetail.IsModerator;
         string userID = e.ChatMessage.UserId.ToString();
@@ -448,34 +508,37 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         // Updates the users database entry every time they send a message, ensuring their information is consistent as long as they are chatting
         // Also catches any new followers not caught in the database, as long as they are chatting
-        if (exists == 0)
+        if (!e.ChatMessage.IsBroadcaster)
         {
-            var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
-            DateTime followDate = DateTime.Now;
-            if (followCheck.Data.Length > 0)
+            if (exists == 0)
             {
-                followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
-            }
-            string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator, Message_Count)
+                var followCheck = await API.Helix.Channels.GetChannelFollowersAsync(streamerID, userId: userID);
+                DateTime followDate = DateTime.Now;
+                if (followCheck.Data.Length > 0)
+                {
+                    followDate = DateTime.Parse(followCheck.Data[0].FollowedAt);
+                }
+                string insertSql = @"INSERT OR IGNORE INTO Viewers (UserID, Username, FollowDate, IsModerator, Message_Count)
                                VALUES (@id, @name, @joinDate, @isMod, @msgCount)";
-            db.Execute(insertSql, new
+                db.Execute(insertSql, new
+                {
+                    id = userID,
+                    name = e.ChatMessage.Username,
+                    joinDate = followDate,
+                    isMod = isMod ? 1 : 0,
+                    msgCount = 1
+                });
+                Log($"New follower {e.ChatMessage.Username} added to the database!");
+            }
+            else
             {
-                id = userID,
-                name = e.ChatMessage.Username,
-                joinDate = followDate,
-                isMod = isMod ? 1 : 0,
-                msgCount = 1
-            });
-            Log($"New follower {e.ChatMessage.Username} added to the database!");
-        }
-        else
-        {
-            string updateSql = "UPDATE Viewers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
-            db.Execute(updateSql, new
-            {
-                isMod = isMod ? 1 : 0,
-                id = userID
-            });
+                string updateSql = "UPDATE Viewers SET IsModerator = @isMod, Message_Count = Message_Count + 1 WHERE UserID = @id";
+                db.Execute(updateSql, new
+                {
+                    isMod = isMod ? 1 : 0,
+                    id = userID
+                });
+            }
         }
 
         if (e.ChatMessage.Username.ToLower() == "slytabot")
@@ -514,6 +577,59 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         foreach (var client in wsServer.ListClients())
         {
             await wsServer.SendAsync(client.Guid, jsonString);
+        }
+        if (followListTick >= 10)
+        {
+            foreach (var client in wsServer.ListClients())
+            {
+                await SendFollowersToClient(client.Guid);
+            }
+            followListTick = 0;
+        }
+    }
+
+    private async void OnWSSocketMessageReceived(object sender, MessageReceivedEventArgs e)
+    {
+        try
+        {
+            string jsonString = System.Text.Encoding.UTF8.GetString(e.Data);
+            Log($"[Websocket Received]: {jsonString}");
+
+            using JsonDocument doc = JsonDocument.Parse(jsonString);
+            JsonElement root = doc.RootElement;
+
+            if (root.TryGetProperty("Action", out JsonElement actionProp))
+            {
+                string action = actionProp.GetString();
+
+                if (action == "OpenArena")
+                {
+                    Log("[DASHBOARD ACTION] Remote execution of OpenArena triggered.");
+
+                    commander.OpenArenaCommand(this, "DashboardAdmin", arenaIDPath);
+                }
+
+                else if (action == "GetFollowers")
+                {
+                    Log("[DASHBOARD ACTION] Client requested follower list. Querying database...");
+                    await SendFollowersToClient(e.Client.Guid);
+                }
+
+                else if (action == "UpdateArenaCode")
+                {
+                    if (root.TryGetProperty("Code", out JsonElement codeProp))
+                    {
+                        string newCode = codeProp.GetString();
+                        Log($"[DASHBOARD ACTION] Client has pushed new Arena ID: {newCode} ");
+
+                        commander.SetIDCommand(this, "REMOTECLIENT", newCode, arenaIDPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[Websocket Inbound Error]; {ex.Message}");
         }
     }
 
@@ -562,6 +678,38 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         catch (Exception ex)
         {
             Log($"[PURGE ERROR] Failed to forward user wipe: {ex.Message}");
+        }
+    }
+
+    private async Task SendFollowersToClient(Guid clientGuid)
+    {
+        try
+        {
+            using var db = _databaseService.GetConnection();
+
+            string sql = @"
+                SELECT UserID, Username, FollowDate, IsModerator, Message_Count
+                FROM Viewers
+                WHERE Message_Count > 0
+                ORDER BY Message_Count DESC
+                LIMIT 100";
+
+            var followers = db.Query(sql).ToList();
+
+            var payload = new
+            {
+                Type = "FollowerList",
+                Data = followers
+            };
+
+            string json = JsonSerializer.Serialize(payload);
+
+            await wsServer.SendAsync(clientGuid, json);
+            Log($"[Websocket Sent] Dispatched {followers.Count} database records to client {clientGuid}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[DATABASE TO WEBSOCKET ERROR]: {ex.Message}");
         }
     }
 
