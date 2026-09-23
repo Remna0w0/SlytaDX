@@ -7,6 +7,7 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessagePayload[]>([]);
   const [followers, setFollowers] = useState<DbFollower[]>([]);
   const [arenaCode, setArenaCode] = useState<string>('');
+  const [questionOfDay, setQuestion] = useState<string>('');
   const [liveStatus, setLiveStatus] = useState<boolean>(false);
 
 
@@ -90,6 +91,26 @@ const handleUpdateArenaCode = () => {
     socketRef.current.send(JSON.stringify(actionPayload));
     console.log (`Sent request to update Arena Code to: ${arenaCode}`);
     setArenaCode('');
+  } else {
+    alert('Websocket is Offline!');
+  }
+};
+
+const handleUpdateQuestion = () => {
+  if (questionOfDay.length < 1) {
+    alert('Please enter a valid question!');
+    return;
+  }
+
+  if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+    const actionPayload = {
+      Action: 'UpdateQuestion',
+      Question: questionOfDay
+    };
+
+    socketRef.current.send(JSON.stringify(actionPayload));
+    console.log (`Sent request to update question of the day to: ${questionOfDay}`);
+    setQuestion('')
   } else {
     alert('Websocket is Offline!');
   }
@@ -206,6 +227,45 @@ return (
       💾 Set Arena Code
     </button>
   </div>
+
+  {/* Vertical Divider */}
+  <div style={{ width: '1px', height: '30px', backgroundColor: '#444' }}></div>
+
+    {/* Question Input & Submit */}
+  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+    <label style={{ fontWeight: 'bold', fontSize: '14px', color: '#ccc' }}>Question of the Day:</label>
+    <input 
+      type="text" 
+      value={questionOfDay} 
+      onChange={(e) => setQuestion(e.target.value)} 
+      placeholder="e.g., What is your favorite fruit?"
+      style={{ 
+        padding: '8px 12px', 
+        fontSize: '14px', 
+        borderRadius: '4px', 
+        border: '1px solid #555', 
+        backgroundColor: '#1e1e1e', 
+        color: '#fff',
+        width: '150px'
+      }} 
+    />
+
+        <button 
+      onClick={handleUpdateQuestion}
+      style={{ 
+        padding: '8px 16px', 
+        backgroundColor: '#04d361', 
+        color: '#000', 
+        border: 'none', 
+        borderRadius: '4px', 
+        fontWeight: 'bold', 
+        cursor: 'pointer' 
+      }}
+    >
+      ❓ Set New Question
+    </button>
+  </div>
+
 
   {/* Vertical Divider */}
   <div style={{ width: '1px', height: '30px', backgroundColor: '#444' }}></div>
