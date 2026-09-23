@@ -168,7 +168,12 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
             if (live && !isLive)
             {
                 isLive = true;
-                OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi\nThe Question");
+                string liveMessage = "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi\nThe Question";
+                if (!string.IsNullOrEmpty(questionOTD))
+                {
+                    liveMessage += $"\nThe Question of the Day is: {questionOTD}";
+                }
+                OnStreamGoLive?.Invoke(this, liveMessage);
                 Log("Streamer is LIVE! Rechecking in 60 seconds...");
 
                 payload = new
