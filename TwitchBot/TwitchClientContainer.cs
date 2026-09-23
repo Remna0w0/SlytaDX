@@ -43,6 +43,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     public string RefreshToken = File.ReadAllText(refreshPath);
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
+    private bool disconnected = false;
     public bool FileExists(string path) => File.Exists(path);
     public string ReadFileText(string path) => File.ReadAllText(path);
     public void WriteFileText(string path, string text) => File.WriteAllText(path, text);
@@ -94,36 +95,20 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
         wsServer.Start();
         Credentials = new ConnectionCredentials(BotUsername, $"oauth:{API.Settings.AccessToken}");
+        Client.Initialize(Credentials);
         Client.OnConnected += OnConnected;
+        Client.OnDisconnected += OnDisconnected;
         Client.OnJoinedChannel += JoinedChannel;
         Client.OnMessageReceived += MessageReceived;
         Client.OnMessageCleared += OnMessageCleared;
         Client.OnUserTimedout += async (s, e) => await HandleUserPurge(e.UserTimeout.Username);
         Client.OnUserBanned += async (s, e) => await HandleUserPurge(e.UserBan.Username);
         Client.OnChatCommandReceived += ChatCommand;
-        Client.Initialize(Credentials);
         await Client.ConnectAsync();
         SetupLiveCheck();
         await ValidateTokenScopes();
         await GetStreamerID();
         await SyncFollowers();
-
-
-        Client.OnDisconnected += async (sender, e) =>
-        {
-            if (currentlyRefreshing)
-            {
-                Log("Reconnector silenced.");
-                return;
-            }
-            else
-            {
-                Log("Disconnected! Attempting to reconnect...");
-                await Client.ConnectAsync();
-                return;
-            }
-        };
-
 
         initializationCompletionSource.SetResult(); // Signal initialization complete
     }
@@ -264,7 +249,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     public async Task RefreshMyToken()
     {
         // prevents panic refrshing
-        if (DateTime.Now - _lastRefreshAttempt < _cooldown)
+        if (DateTime.Now - _lastRefreshAttempt < _cooldown && !disconnected)
         {
             Log("Refresh cooldown active. Skipping request.");
             return;
@@ -283,6 +268,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
             {
                 API.Settings.AccessToken = refreshResult.AccessToken;
 
+
                 if (Client.IsConnected)
                 {
                     Log("Updating Chat Client credentials...");
@@ -290,14 +276,25 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                     currentlyRefreshing = true;
 
                     await Client.DisconnectAsync();
-
                     await Task.Delay(500);
 
                     // Update old creds before writing to the file
                     Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
+
                     await Client.ConnectAsync();
                     currentlyRefreshing = false;
                 }
+
+                if (disconnected)
+                {
+                    Log("Refreshing tokens before reconnecting...");
+
+                    // Update old creds before writing to the file
+                    Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
+                    await Client.ConnectAsync();   
+                }
+
+
 
                 await _fileLock.WaitAsync();
                 try
@@ -716,14 +713,54 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     private async Task JoinedChannel(object? sender, OnJoinedChannelArgs e)
     {
         Log($"Joined Channel: {e.Channel}");
-        Say("Ready!");
     }
 
-    private async Task OnConnected(object? sender, TwitchLib.Client.Events.OnConnectedEventArgs e)
+    private async Task OnConnected(object? sender, OnConnectedEventArgs e)
     {
         Log("I have connected!");
         await Client.JoinChannelAsync(streamName);
     }
+
+    private Task OnDisconnected(object? sender, OnDisconnectedArgs e)
+    {
+        if (disconnected || currentlyRefreshing)
+        {
+            return Task.CompletedTask;
+        }
+        Log("I have disconnected!");
+        Log("Starting refresh loop");
+
+        Task.Run(async () => await RefreshLoop());
+
+        return Task.CompletedTask;
+    }
+
+    private async Task RefreshLoop()
+    {
+        disconnected = true;
+        Log("Attempting to reconnect...");
+        int tries = 0;
+        while (!Client.IsConnected)
+        {
+            await RefreshMyToken();
+            await Task.Delay(500);
+            if (!Client.IsConnected)
+            {
+                Log($"Reconnect attempt failed! Retrying in {(tries * 2) + 10} secs...");
+                await Task.Delay(((tries * 2) + 10) * 1000);
+                tries++;
+            }
+            else
+            {
+               Log("Reconnect succesful!");
+               Log($"Attempts: {tries} ");
+               disconnected = false;
+            }
+        }
+        
+    }
+
+
 
     public void LogCommand(string userId, string commandName)
     {
