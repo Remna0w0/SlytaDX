@@ -136,6 +136,32 @@ namespace RemnaBotService.TwitchBot
                     client.LogCommand(userId, "setid");
         }
 
+        public string SetQuestionOfTheDayCommand(ITwitchClientWrapper client, string userId, string idArg)
+        {
+            client.Log($"Set question: {idArg}");
+            client.Say($"New Question of the Day: {idArg}");
+            client.LogCommand(userId, "setquestion");
+            return idArg;
+        }
+
+        public void AskQuestionCommand(ITwitchClientWrapper client, string userId, string question)
+        {
+            if (IsOnCooldown("question", _standardCooldown))
+            {
+                client.Log("question is on cooldown.");
+                return;
+            }
+            
+            if (string.IsNullOrEmpty(question))
+            {
+                client.Say("There is no question of the day!");
+                client.LogCommand(userId, "question");
+                return;
+            }
+            client.Say($"QotD: {question}");
+            client.LogCommand(userId, "question");
+        }
+
 
         public void OpenArenaCommand(ITwitchClientWrapper client, string userId, string arenaIDPath)
         {

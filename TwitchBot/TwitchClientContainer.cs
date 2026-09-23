@@ -41,6 +41,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
     public string Secret = File.ReadAllText(secretPath);
     public string ClientID = File.ReadAllText(clientIdPath);
     public string RefreshToken = File.ReadAllText(refreshPath);
+    private string questionOTD;
     private System.Timers.Timer liveCheckTimer;
     private bool isLive = false;
     private bool disconnected = false;
@@ -167,7 +168,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
             if (live && !isLive)
             {
                 isLive = true;
-                OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi");
+                OnStreamGoLive?.Invoke(this, "@everyone Remna is LIVE! Come thru! https://www.twitch.tv/remnapi\nThe Question");
                 Log("Streamer is LIVE! Rechecking in 60 seconds...");
 
                 payload = new
@@ -275,11 +276,14 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
                     currentlyRefreshing = true;
 
+                    Client.OnDisconnected -= OnDisconnected;
                     await Client.DisconnectAsync();
                     await Task.Delay(500);
 
                     // Update old creds before writing to the file
                     Client.SetConnectionCredentials(new ConnectionCredentials(BotUsername, $"oauth:{refreshResult.AccessToken}"));
+
+                    Client.OnDisconnected += OnDisconnected;    
 
                     await Client.ConnectAsync();
                     currentlyRefreshing = false;
@@ -319,6 +323,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         catch (Exception ex)
         {
             Log($"Critical Error! {ex.Message}");
+            currentlyRefreshing = false;
         }
     }
 
@@ -398,6 +403,25 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                     }
                     await commander.FollowageCommand(this, e.ChatMessage.UserId, username, streamerID);
                     break;
+
+                case "setquestion":
+                    if(e.ChatMessage.IsBroadcaster)
+                    {
+                        if (!string.IsNullOrEmpty(e.Command.ArgumentsAsString))
+                        {
+                            questionOTD = commander.SetQuestionOfTheDayCommand(this, e.ChatMessage.UserId, e.Command.ArgumentsAsString);
+                        }
+                        else
+                        {
+                            Say("Please provide a question!");
+                        }
+                    }
+                    break;
+
+                case "question":
+                    commander.AskQuestionCommand(this, e.ChatMessage.UserId, questionOTD);
+                    break;
+
 
             }
         }
@@ -622,6 +646,17 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
                         commander.SetIDCommand(this, "REMOTECLIENT", newCode, arenaIDPath);
                     }
                 }
+
+                else if (action == "UpdateQuestion")
+                {
+                    if (root.TryGetProperty("Question", out JsonElement questionProp))
+                    {
+                        string newQuestion = questionProp.GetString();
+                        Log($"[DASHBOARD ACTION] Client has pushed new Question of the Day: {newQuestion} ");
+
+                        commander.SetQuestionOfTheDayCommand(this, "REMOTECLIENT", newQuestion);
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -727,6 +762,7 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
         {
             return Task.CompletedTask;
         }
+        disconnected = true;
         Log("I have disconnected!");
         Log("Starting refresh loop");
 
@@ -737,7 +773,6 @@ public class TwitchClientContainer : TwitchLogger, ITwitchClientWrapper
 
     private async Task RefreshLoop()
     {
-        disconnected = true;
         Log("Attempting to reconnect...");
         int tries = 0;
         while (!Client.IsConnected)
